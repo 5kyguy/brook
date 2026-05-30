@@ -30,6 +30,7 @@ export function initLibraryPage(
   let likedTracks: Track[] = [];
   let localTracks: Track[] = [];
   let playingTrackId: string | null = null;
+  let libraryHasTracks = false;
   const filterBar: FilterBar | null = filtersMount ? initFilterBar(filtersMount) : null;
 
   const listOptions = (tracks: Track[]) => ({
@@ -53,6 +54,9 @@ export function initLibraryPage(
   };
 
   const renderLocal = () => {
+    if (filtersMount) {
+      filtersMount.hidden = !libraryHasTracks;
+    }
     renderTrackList(localListEl, localTracks, {
       ...listOptions(localTracks),
       emptyMessage: "No tracks found in your music folder.",
@@ -85,7 +89,11 @@ export function initLibraryPage(
     },
     async refreshFacets() {
       const all = await api.library.getTracks({ sortBy: "title", sortOrder: "asc" });
+      libraryHasTracks = all.length > 0;
       filterBar?.setFacets(buildFacets(all));
+      if (filtersMount) {
+        filtersMount.hidden = !libraryHasTracks;
+      }
     },
     setScanStatus(message: string) {
       if (statusEl) statusEl.textContent = message;

@@ -17,6 +17,32 @@ export const DEFAULT_FILTER_STATE: LibraryFilterState = {
   sortOrder: "asc",
 };
 
+const SORT_OPTIONS: Array<{
+  value: `${LibraryFilterState["sortBy"]}:${LibraryFilterState["sortOrder"]}`;
+  label: string;
+}> = [
+  { value: "title:asc", label: "Title (A–Z)" },
+  { value: "title:desc", label: "Title (Z–A)" },
+  { value: "artist:asc", label: "Artist (A–Z)" },
+  { value: "artist:desc", label: "Artist (Z–A)" },
+  { value: "album:asc", label: "Album (A–Z)" },
+  { value: "album:desc", label: "Album (Z–A)" },
+  { value: "year:desc", label: "Year (newest)" },
+  { value: "year:asc", label: "Year (oldest)" },
+];
+
+function sortValue(state: LibraryFilterState): string {
+  return `${state.sortBy}:${state.sortOrder}`;
+}
+
+function parseSortValue(value: string): Pick<LibraryFilterState, "sortBy" | "sortOrder"> {
+  const [sortBy, sortOrder] = value.split(":") as [
+    LibraryFilterState["sortBy"],
+    LibraryFilterState["sortOrder"],
+  ];
+  return { sortBy, sortOrder };
+}
+
 export function buildFacets(tracks: Track[]): LibraryFacets {
   const artists = new Set<string>();
   const albums = new Set<string>();
@@ -45,10 +71,27 @@ export function filterStateToQuery(state: LibraryFilterState): TrackFilter {
   };
 }
 
+function isFilterActive(state: LibraryFilterState): boolean {
+  return Boolean(state.artist || state.album || state.year);
+}
+
 export interface FilterBar {
   getState(): LibraryFilterState;
   setFacets(facets: LibraryFacets): void;
   onChange(handler: (state: LibraryFilterState) => void): void;
+}
+
+function createFilterGroup(
+  labelText: string,
+  select: HTMLSelectElement,
+  id: string,
+): HTMLElement {
+  select.id = id;
+  const group = el("div", "library-filter-group");
+  const labelEl = el("label", "library-filter-label", labelText);
+  labelEl.htmlFor = id;
+  group.append(labelEl, select);
+  return group;
 }
 
 export function initFilterBar(container: HTMLElement): FilterBar {
@@ -56,38 +99,35 @@ export function initFilterBar(container: HTMLElement): FilterBar {
   let facets: LibraryFacets = { artists: [], albums: [], years: [] };
   let changeHandler: ((state: LibraryFilterState) => void) | null = null;
 
-  const artistSelect = el("select", "filter-select");
-  const albumSelect = el("select", "filter-select");
-  const yearSelect = el("select", "filter-select");
-  const sortSelect = el("select", "filter-select");
-  const orderSelect = el("select", "filter-select");
-  const clearBtn = el("button", "filter-clear-btn", "Clear");
+  container.className = "library-filters-bar";
+  container.replaceChildren();
 
-  container.className = "library-liked-tracks-toolbar";
-  container.append(
-    el("label", "filter-field", "Artist"),
-    artistSelect,
-    el("label", "filter-field", "Album"),
-    albumSelect,
-    el("label", "filter-field", "Year"),
-    yearSelect,
-    el("label", "filter-field", "Sort"),
-    sortSelect,
-    el("label", "filter-field", "Order"),
-    orderSelect,
-    clearBtn,
+  const header = el("div", "library-filters-header");
+  const title = el("span", "library-filters-title", "Filter & sort");
+  const clearBtn = el("button", "btn-secondary library-filters-clear", "Clear filters");
+  clearBtn.type = "button";
+  clearBtn.disabled = true;
+  header.append(title, clearBtn);
+
+  const row = el("div", "library-filters-row");
+
+  const artistSelect = el("select", "library-filter-select");
+  const albumSelect = el("select", "library-filter-select");
+  const yearSelect = el("select", "library-filter-select");
+  const sortSelect = el("select", "library-filter-select");
+
+  sortSelect.innerHTML = SORT_OPTIONS.map(
+    (opt) => `<option value="${opt.value}">${opt.label}</option>`,
+  ).join("");
+
+  row.append(
+    createFilterGroup("Artist", artistSelect, "library-filter-artist"),
+    createFilterGroup("Album", albumSelect, "library-filter-album"),
+    createFilterGroup("Year", yearSelect, "library-filter-year"),
+    createFilterGroup("Sort by", sortSelect, "library-filter-sort"),
   );
 
-  sortSelect.innerHTML = `
-    <option value="title">Title</option>
-    <option value="artist">Artist</option>
-    <option value="album">Album</option>
-    <option value="year">Year</option>
-  `;
-  orderSelect.innerHTML = `
-    <option value="asc">Ascending</option>
-    <option value="desc">Descending</option>
-  `;
+  container.append(header, row);
 
   const fillSelect = (
     select: HTMLSelectElement,
@@ -106,40 +146,46 @@ export function initFilterBar(container: HTMLElement): FilterBar {
     select.value = values.map(String).includes(previous) ? previous : "";
   };
 
+  const syncChrome = () => {
+    const active = isFilterActive(state);
+    container.classList.toggle("has-active-filters", active);
+    clearBtn.disabled = !active;
+  };
+
   const notify = () => {
+    syncChrome();
     changeHandler?.(state);
   };
 
   const updateStateFromInputs = () => {
+    const { sortBy, sortOrder } = parseSortValue(sortSelect.value);
     state = {
       artist: artistSelect.value,
       album: albumSelect.value,
       year: yearSelect.value,
-      sortBy: sortSelect.value as LibraryFilterState["sortBy"],
-      sortOrder: orderSelect.value as LibraryFilterState["sortOrder"],
+      sortBy,
+      sortOrder,
     };
   };
 
-  for (const select of [artistSelect, albumSelect, yearSelect, sortSelect, orderSelect]) {
+  for (const select of [artistSelect, albumSelect, yearSelect, sortSelect]) {
     select.addEventListener("change", () => {
       updateStateFromInputs();
       notify();
     });
   }
 
-  clearBtn.type = "button";
   clearBtn.addEventListener("click", () => {
     state = { ...DEFAULT_FILTER_STATE };
     artistSelect.value = "";
     albumSelect.value = "";
     yearSelect.value = "";
-    sortSelect.value = state.sortBy;
-    orderSelect.value = state.sortOrder;
+    sortSelect.value = sortValue(state);
     notify();
   });
 
-  sortSelect.value = state.sortBy;
-  orderSelect.value = state.sortOrder;
+  sortSelect.value = sortValue(state);
+  syncChrome();
 
   return {
     getState: () => state,
