@@ -172,12 +172,13 @@ impl Database {
         } else {
             "ASC"
         };
-        // COLLATE NOCASE applies only to text columns; using it on INTEGER (year) is a syntax error.
+        // COLLATE must precede ASC/DESC: `col COLLATE NOCASE ASC`, not `col ASC COLLATE NOCASE`.
+        // NOCASE applies only to text columns (not INTEGER year).
         let order_by = match sort_by {
-            "artist" => format!("t.artist {sort_dir} COLLATE NOCASE"),
-            "album" => format!("t.album {sort_dir} COLLATE NOCASE"),
+            "artist" => format!("t.artist COLLATE NOCASE {sort_dir}"),
+            "album" => format!("t.album COLLATE NOCASE {sort_dir}"),
             "year" => format!("t.year {sort_dir}"),
-            _ => format!("t.title {sort_dir} COLLATE NOCASE"),
+            _ => format!("t.title COLLATE NOCASE {sort_dir}"),
         };
         sql.push_str(&format!(" ORDER BY {order_by}"));
 
@@ -537,6 +538,45 @@ mod tests {
         assert!(db.toggle_favorite("song.flac").unwrap());
         let track = db.get_track("song.flac").unwrap();
         assert!(track.is_favorite);
+    }
+
+    #[test]
+    fn get_tracks_sort_by_title_uses_collate_before_direction() {
+        use crate::models::TrackFilter;
+
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut db = Database::open(&dir.join("test.db")).unwrap();
+
+        let file = ScannedFile {
+            id: "z.flac".into(),
+            relative_path: "z.flac".into(),
+            absolute_path: "/music/z.flac".into(),
+            extension: "flac".into(),
+            file_size: 1,
+            modified_ms: 1,
+            has_lrc: false,
+            lrc_path: None,
+        };
+        db.upsert_track(
+            &file,
+            &TrackMetadata {
+                title: Some("Zebra".into()),
+                artist: None,
+                album: None,
+                year: None,
+                duration_secs: None,
+                embedded_lyrics: None,
+            },
+        )
+        .unwrap();
+
+        let filter = TrackFilter {
+            sort_by: Some("title".into()),
+            sort_order: Some("asc".into()),
+            ..Default::default()
+        };
+        assert!(db.get_tracks(Some(&filter)).is_ok());
     }
 
     #[test]
