@@ -88,3 +88,22 @@ pub struct ScanProgressPayload {
 pub struct ScanCompletePayload {
     pub track_count: usize,
 }
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct PlaybackStatePayload {
+    pub status: PlaybackStatus,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackPositionPayload {
+    pub position_secs: f64,
+    pub duration_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackEndedPayload {
+    pub track_id: String,
+}

@@ -23,6 +23,12 @@ lofty = "0.22"
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
+symphonia = { version = "0.5", features = ["mp3", "flac", "vorbis", "pcm", "aac", "isomp4", "ogg", "wav"] }
+rodio = "0.19"
 
 [profile.dev]
 incremental = true
+
+[profile.release]
+lto = true
+codegen-units = 1

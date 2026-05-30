@@ -1,50 +1,48 @@
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::models::PlaybackState;
 use crate::state::AppState;
 
 #[tauri::command]
 pub fn get_playback_state(state: State<'_, AppState>) -> Result<PlaybackState, String> {
-    let audio = state.audio.lock().map_err(|e| e.to_string())?;
-    Ok(audio.state())
+    Ok(state.audio.state())
 }
 
 #[tauri::command]
-pub fn play_track(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let track = db.get_track_row(&id)?;
-    drop(db);
+pub fn play_track(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let (track, track_row) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let row = db.get_track_row(&id)?;
+        let track = db.get_track(&id)?;
+        (track, row)
+    };
 
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.load_track(&track)
+    state.audio.play(&track_row)?;
+    let _ = app.emit("playback:track-changed", track);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn pause(state: State<'_, AppState>) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.pause()
+    state.audio.pause()
 }
 
 #[tauri::command]
 pub fn resume(state: State<'_, AppState>) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.resume()
+    state.audio.resume()
 }
 
 #[tauri::command]
 pub fn stop(state: State<'_, AppState>) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.stop()
+    state.audio.stop()
 }
 
 #[tauri::command]
 pub fn seek(state: State<'_, AppState>, position_secs: f64) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.seek(position_secs)
+    state.audio.seek(position_secs)
 }
 
 #[tauri::command]
 pub fn set_volume(state: State<'_, AppState>, volume: f32) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(|e| e.to_string())?;
-    audio.set_volume(volume)
+    state.audio.set_volume(volume)
 }

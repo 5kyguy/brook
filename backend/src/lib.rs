@@ -278,7 +278,7 @@ pub fn run() {
             let db = db::Database::open(&db_path)?;
             let music_root = paths::resolve_music_root(&db)?;
 
-            app.manage(AppState::new(db, music_root));
+            app.manage(AppState::new(db, music_root, app.handle().clone()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
