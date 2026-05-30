@@ -1,3 +1,6 @@
+pub mod charts;
+pub mod stats;
+
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -5,7 +8,7 @@ use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 use crate::metadata::TrackMetadata;
-use crate::models::{Playlist, Track, TrackFilter};
+use crate::models::{Playlist, PlaylistKind, Track, TrackFilter};
 use crate::scanner::ScannedFile;
 
 #[derive(Debug, Clone)]
@@ -42,7 +45,44 @@ impl Database {
 
     fn migrate(&self) -> Result<(), String> {
         let sql = include_str!("../../migrations/001_init.sql");
-        self.conn.execute_batch(sql).map_err(|e| e.to_string())
+        self.conn.execute_batch(sql).map_err(|e| e.to_string())?;
+        self.migrate_stats_charts()
+    }
+
+    fn migrate_stats_charts(&self) -> Result<(), String> {
+        self.conn
+            .execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_play_history_played_at ON play_history(played_at);
+                 CREATE INDEX IF NOT EXISTS idx_play_history_track_id ON play_history(track_id);",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let has_kind = self.playlists_has_kind_column()?;
+        if !has_kind {
+            self.conn
+                .execute(
+                    "ALTER TABLE playlists ADD COLUMN kind TEXT NOT NULL DEFAULT 'user'",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn playlists_has_kind_column(&self) -> Result<bool, String> {
+        let mut stmt = self
+            .conn
+            .prepare("PRAGMA table_info(playlists)")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| e.to_string())?;
+        for name in rows.flatten() {
+            if name == "kind" {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, String> {
@@ -287,12 +327,20 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT p.id, p.name, p.created_at, p.updated_at,
+                "SELECT p.id, p.name, p.created_at, p.updated_at, p.kind,
                         COUNT(pt.track_id) AS track_count
                  FROM playlists p
                  LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
                  GROUP BY p.id
-                 ORDER BY p.updated_at DESC",
+                 ORDER BY
+                   CASE p.kind
+                     WHEN 'weekly_top' THEN 1
+                     WHEN 'monthly_top' THEN 2
+                     WHEN 'quarterly_top' THEN 3
+                     WHEN 'yearly_top' THEN 4
+                     ELSE 10
+                   END,
+                   p.updated_at DESC",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -302,7 +350,8 @@ impl Database {
                     name: row.get(1)?,
                     created_at: row.get(2)?,
                     updated_at: row.get(3)?,
-                    track_count: row.get(4)?,
+                    kind: PlaylistKind::from_db_str(row.get::<_, String>(4)?.as_str()),
+                    track_count: row.get(5)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -340,7 +389,7 @@ impl Database {
         let now = now_ms();
         self.conn
             .execute(
-                "INSERT INTO playlists (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO playlists (id, name, created_at, updated_at, kind) VALUES (?1, ?2, ?3, ?4, 'user')",
                 params![id, name, now, now],
             )
             .map_err(|e| e.to_string())?;
@@ -350,10 +399,12 @@ impl Database {
             created_at: now,
             updated_at: now,
             track_count: 0,
+            kind: PlaylistKind::User,
         })
     }
 
     pub fn update_playlist(&self, id: &str, name: Option<&str>) -> Result<Playlist, String> {
+        self.ensure_user_playlist(id)?;
         if let Some(name) = name {
             let now = now_ms();
             let updated = self
@@ -373,7 +424,7 @@ impl Database {
     fn get_playlist_by_id(&self, id: &str) -> Result<Playlist, String> {
         self.conn
             .query_row(
-                "SELECT p.id, p.name, p.created_at, p.updated_at,
+                "SELECT p.id, p.name, p.created_at, p.updated_at, p.kind,
                         COUNT(pt.track_id) AS track_count
                  FROM playlists p
                  LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
@@ -386,14 +437,23 @@ impl Database {
                         name: row.get(1)?,
                         created_at: row.get(2)?,
                         updated_at: row.get(3)?,
-                        track_count: row.get(4)?,
+                        kind: PlaylistKind::from_db_str(row.get::<_, String>(4)?.as_str()),
+                        track_count: row.get(5)?,
                     })
                 },
             )
             .map_err(|e| format!("Playlist not found: {id} ({e})"))
     }
 
+    fn ensure_user_playlist(&self, id: &str) -> Result<(), String> {
+        if charts::is_chart_playlist_id(id) {
+            return Err("Chart playlists are updated automatically".into());
+        }
+        Ok(())
+    }
+
     pub fn delete_playlist(&self, id: &str) -> Result<(), String> {
+        self.ensure_user_playlist(id)?;
         let deleted = self
             .conn
             .execute("DELETE FROM playlists WHERE id = ?1", params![id])
@@ -405,6 +465,7 @@ impl Database {
     }
 
     pub fn add_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<(), String> {
+        self.ensure_user_playlist(playlist_id)?;
         self.get_playlist_by_id(playlist_id)?;
         self.get_track_row(track_id)?;
 
@@ -435,6 +496,7 @@ impl Database {
     }
 
     pub fn remove_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<(), String> {
+        self.ensure_user_playlist(playlist_id)?;
         let deleted = self
             .conn
             .execute(

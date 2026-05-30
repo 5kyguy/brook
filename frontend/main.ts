@@ -1,7 +1,9 @@
 import * as api from "./api";
 import { initPlayerBar } from "./player/bar";
 import { getLastTrackId, saveLastTrackId } from "./player/last-track";
+import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
+import { initStatsPage } from "./ui/stats";
 import { loadStoredTheme } from "./settings/theme";
 import { initLibraryPage, scanAndLoadLibrary } from "./ui/library";
 import { initPlaylistPicker } from "./ui/playlist-picker";
@@ -38,6 +40,24 @@ async function boot(): Promise<void> {
     () => libraryPage.getPlayingTrackId(),
   );
 
+  const statsPage = initStatsPage(
+    (track) => void playTrack(track, playerBar, libraryPage),
+    (track) => void toggleFavorite(track, libraryPage),
+    (track) => void playlistPicker.open(track),
+    () => libraryPage.getPlayingTrackId(),
+  );
+
+  const recentPage = initRecentPage(
+    (track) => void playTrack(track, playerBar, libraryPage),
+    (track) => void toggleFavorite(track, libraryPage),
+    (track) => void playlistPicker.open(track),
+    () => libraryPage.getPlayingTrackId(),
+    () => {
+      void playlists.refresh();
+      void statsPage.refresh();
+    },
+  );
+
   playlistPicker = initPlaylistPicker(() => {
     void playlists.refresh();
   });
@@ -66,6 +86,8 @@ async function boot(): Promise<void> {
   bindSidebarNavigation(router);
   router.start((route) => {
     if (route.id === "library") void libraryPage.refresh();
+    if (route.id === "stats") void statsPage.refresh();
+    if (route.id === "recent") void recentPage.refresh();
     if (route.id === "playlist") {
       const match = window.location.pathname.match(/^\/userplaylist\/([^/]+)/);
       if (match) void playlists.openPlaylist(match[1]);
@@ -106,6 +128,9 @@ async function boot(): Promise<void> {
     libraryPage.setPlayingTrackId(null);
     void api.playback.getPlaybackState().then((state) => playerBar.sync(state));
     void libraryPage.refresh();
+    void statsPage.refresh();
+    void recentPage.refresh();
+    void playlists.refresh();
   });
 
   try {

@@ -67,6 +67,60 @@ export interface Playlist {
   createdAt: number;
   updatedAt: number;
   trackCount: number;
+  kind: PlaylistKind;
+}
+
+export type PlaylistKind =
+  | "user"
+  | "weeklyTop"
+  | "monthlyTop"
+  | "quarterlyTop"
+  | "yearlyTop";
+
+export interface RankedTrack {
+  track: Track;
+  playCount: number;
+  totalSecs: number;
+}
+
+export interface RankedArtist {
+  name: string;
+  playCount: number;
+  totalSecs: number;
+}
+
+export interface RankedAlbum {
+  name: string;
+  playCount: number;
+  totalSecs: number;
+}
+
+export interface RankedYear {
+  year: number;
+  playCount: number;
+  totalSecs: number;
+}
+
+export interface StatsSummary {
+  totalPlays: number;
+  totalListenSecs: number;
+  uniqueTracks: number;
+  fullListens: number;
+  topTracks: RankedTrack[];
+  topArtist: RankedArtist | null;
+  topAlbum: RankedAlbum | null;
+  topYear: RankedYear | null;
+}
+
+export interface YearlyWrap {
+  year: number;
+  totalPlays: number;
+  totalListenSecs: number;
+  uniqueTracks: number;
+  fullListens: number;
+  topTracks: RankedTrack[];
+  topArtists: RankedArtist[];
+  topAlbums: RankedAlbum[];
 }
 
 export interface LibraryFacets {

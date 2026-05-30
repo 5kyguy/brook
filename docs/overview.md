@@ -78,6 +78,6 @@ Playback state reaches the UI through Tauri events (position, state, track chang
 - [x] Frontend scaffold (`frontend/` — Monochrome-inspired UI shell)
 - [x] Settings page (theme, visual toggles, library path, rescan)
 - [x] Playlists, favorites, filters (UI wiring)
-- [ ] Stats and yearly wrap
+- [x] Stats and yearly wrap
 - [ ] Configurable music folder (picker in settings)
 - [ ] Visualizer spectrum data from Rust

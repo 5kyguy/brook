@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Emitter, State};
 
 use crate::models::PlaybackState;
+use crate::playback_session::finalize_current_listen;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -10,6 +11,8 @@ pub fn get_playback_state(state: State<'_, AppState>) -> Result<PlaybackState, S
 
 #[tauri::command]
 pub fn play_track(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    finalize_current_listen(&state);
+
     let (track, track_row) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let row = db.get_track_row(&id)?;
@@ -34,6 +37,7 @@ pub fn resume(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn stop(state: State<'_, AppState>) -> Result<(), String> {
+    finalize_current_listen(&state);
     state.audio.stop()
 }
 

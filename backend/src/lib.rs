@@ -257,6 +257,7 @@ pub mod lyrics {
 pub mod db;
 pub mod audio;
 pub mod commands;
+pub mod playback_session;
 pub mod state;
 
 use tauri::Manager;
@@ -275,7 +276,8 @@ pub fn run() {
             std::fs::create_dir_all(&app_data).map_err(|e| e.to_string())?;
 
             let db_path = app_data.join("brook.db");
-            let db = db::Database::open(&db_path)?;
+            let mut db = db::Database::open(&db_path)?;
+            db.refresh_chart_playlists_if_due()?;
             let music_root = paths::resolve_music_root(&db)?;
 
             app.manage(AppState::new(db, music_root, app.handle().clone()));
@@ -303,6 +305,10 @@ pub fn run() {
             commands::playback::stop,
             commands::playback::seek,
             commands::playback::set_volume,
+            commands::stats::get_stats,
+            commands::stats::get_yearly_wrap,
+            commands::stats::get_recent_tracks,
+            commands::stats::clear_play_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -348,6 +348,7 @@ dependencies = [
 name = "brook"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dirs",
  "lofty",
  "rodio",

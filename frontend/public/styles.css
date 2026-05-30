@@ -11755,3 +11755,44 @@ img.cd {
     color: var(--muted-foreground);
     margin-top: 0.15rem;
 }
+
+.stats-section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.stats-year-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
+}
+
+.stats-year-picker--header {
+    margin: -0.25rem 0 1rem;
+}
+
+.stats-year-picker select {
+    min-width: 6rem;
+}
+
+.stats-wrap-grid {
+    margin-bottom: 0.5rem;
+}
+
+.hidden-section {
+    display: none !important;
+}
+
+.card.chart-playlist {
+    border-color: rgb(var(--highlight-rgb) / 0.35);
+}
+
+.card.chart-playlist .card-subtitle {
+    color: var(--highlight);
+}

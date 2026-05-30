@@ -44,6 +44,101 @@ pub struct Playlist {
     pub created_at: i64,
     pub updated_at: i64,
     pub track_count: i64,
+    pub kind: PlaylistKind,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PlaylistKind {
+    User,
+    WeeklyTop,
+    MonthlyTop,
+    QuarterlyTop,
+    YearlyTop,
+}
+
+impl PlaylistKind {
+    pub fn from_db_str(value: &str) -> Self {
+        match value {
+            "weekly_top" => Self::WeeklyTop,
+            "monthly_top" => Self::MonthlyTop,
+            "quarterly_top" => Self::QuarterlyTop,
+            "yearly_top" => Self::YearlyTop,
+            _ => Self::User,
+        }
+    }
+
+    pub fn as_db_str(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::WeeklyTop => "weekly_top",
+            Self::MonthlyTop => "monthly_top",
+            Self::QuarterlyTop => "quarterly_top",
+            Self::YearlyTop => "yearly_top",
+        }
+    }
+
+    pub fn is_chart(self) -> bool {
+        !matches!(self, Self::User)
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankedTrack {
+    pub track: Track,
+    pub play_count: u64,
+    pub total_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankedArtist {
+    pub name: String,
+    pub play_count: u64,
+    pub total_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankedAlbum {
+    pub name: String,
+    pub play_count: u64,
+    pub total_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankedYear {
+    pub year: i32,
+    pub play_count: u64,
+    pub total_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsSummary {
+    pub total_plays: u64,
+    pub total_listen_secs: f64,
+    pub unique_tracks: u64,
+    pub full_listens: u64,
+    pub top_tracks: Vec<RankedTrack>,
+    pub top_artist: Option<RankedArtist>,
+    pub top_album: Option<RankedAlbum>,
+    pub top_year: Option<RankedYear>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YearlyWrap {
+    pub year: i32,
+    pub total_plays: u64,
+    pub total_listen_secs: f64,
+    pub unique_tracks: u64,
+    pub full_listens: u64,
+    pub top_tracks: Vec<RankedTrack>,
+    pub top_artists: Vec<RankedArtist>,
+    pub top_albums: Vec<RankedAlbum>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]

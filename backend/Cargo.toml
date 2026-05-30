@@ -25,6 +25,7 @@ uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
 symphonia = { version = "0.5", features = ["mp3", "flac", "vorbis", "pcm", "aac", "isomp4", "ogg", "wav"] }
 rodio = "0.19"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [profile.dev]
 incremental = true

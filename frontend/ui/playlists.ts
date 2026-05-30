@@ -1,5 +1,5 @@
 import * as api from "../api";
-import type { Playlist, Track } from "../types";
+import type { Playlist, PlaylistKind, Track } from "../types";
 import { SVG_LIST_MUSIC } from "./icons";
 import { renderTrackList } from "./track-list";
 import type { Router } from "./router";
@@ -10,8 +10,9 @@ function escapeHtml(text: string): string {
 
 function createUserPlaylistCardHTML(playlist: Playlist): string {
   const count = playlist.trackCount;
+  const chartClass = playlist.kind !== "user" ? " chart-playlist" : "";
   return `
-    <div class="card user-playlist" data-user-playlist-id="${escapeHtml(playlist.id)}" data-href="/userplaylist/${escapeHtml(playlist.id)}" style="cursor: pointer;">
+    <div class="card user-playlist${chartClass}" data-user-playlist-id="${escapeHtml(playlist.id)}" data-href="/userplaylist/${escapeHtml(playlist.id)}" style="cursor: pointer;">
       <div class="card-image-wrapper">
         <img src="./assets/appicon.png" alt="" class="card-image" loading="lazy" />
       </div>
@@ -36,6 +37,7 @@ export function initPlaylists(
   getPlayingTrackId: () => string | null,
 ): PlaylistsController {
   const grid = document.getElementById("my-playlists-container");
+  const chartGrid = document.getElementById("chart-playlists-container");
   const createCard = document.getElementById("library-create-playlist-card");
   const detailTitle = document.getElementById("playlist-detail-title");
   const detailMeta = document.getElementById("playlist-detail-meta");
@@ -53,6 +55,7 @@ export function initPlaylists(
 
   let playlists: Playlist[] = [];
   let currentPlaylistId: string | null = null;
+  let currentPlaylistKind: PlaylistKind = "user";
 
   if (playPlaylistBtn) playPlaylistBtn.style.display = "none";
   document.getElementById("shuffle-playlist-btn")?.style.setProperty("display", "none");
@@ -71,8 +74,25 @@ export function initPlaylists(
 
   async function refresh() {
     playlists = await api.playlists.getPlaylists();
+    const charts = playlists.filter((p) => p.kind !== "user");
+    const userPlaylists = playlists.filter((p) => p.kind === "user");
+
+    if (chartGrid) {
+      chartGrid.replaceChildren();
+      for (const playlist of charts) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = createUserPlaylistCardHTML(playlist);
+        const card = wrapper.firstElementChild as HTMLElement;
+        card.addEventListener("click", () => {
+          void openPlaylist(playlist.id);
+        });
+        chartGrid.appendChild(card);
+      }
+      chartGrid.parentElement?.classList.toggle("hidden-section", charts.length === 0);
+    }
+
     playlistGrid.querySelectorAll(".user-playlist").forEach((el) => el.remove());
-    for (const playlist of playlists) {
+    for (const playlist of userPlaylists) {
       const wrapper = document.createElement("div");
       wrapper.innerHTML = createUserPlaylistCardHTML(playlist);
       const card = wrapper.firstElementChild as HTMLElement;
@@ -86,16 +106,20 @@ export function initPlaylists(
   async function openPlaylist(id: string) {
     currentPlaylistId = id;
     const playlist = playlists.find((p) => p.id === id);
+    currentPlaylistKind = playlist?.kind ?? "user";
+    const isChart = currentPlaylistKind !== "user";
     const tracks = await api.playlists.getPlaylistTracks(id);
     titleEl.textContent = playlist?.name ?? "Playlist";
-    metaEl.textContent = `${tracks.length} tracks`;
+    metaEl.textContent = isChart
+      ? `${tracks.length} tracks · auto-updated`
+      : `${tracks.length} tracks`;
     renderTrackList(tracksList, tracks, {
       onPlay,
       onToggleFavorite,
       onAddToPlaylist,
       playingTrackId: getPlayingTrackId(),
       showInlineLike: true,
-      showRemoveAction: true,
+      showRemoveAction: !isChart,
       onRemoveFromPlaylist: (track) => {
         void (async () => {
           await api.playlists.removeFromPlaylist(id, track.id);

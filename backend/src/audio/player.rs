@@ -3,7 +3,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use rodio::{OutputStream, OutputStreamHandle, Sink};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::db::TrackRow;
 use crate::audio::decode::DecodedAudio;
@@ -13,6 +13,16 @@ use crate::models::{
 };
 
 const TICK_MS: u64 = 250;
+
+use crate::state::AppState;
+
+fn record_listen(app: &AppHandle, track_id: &str, position_secs: f64, duration_secs: f64) {
+    let state = app.state::<AppState>();
+    let Ok(mut db) = state.db.lock() else {
+        return;
+    };
+    let _ = db.record_play(track_id, position_secs, duration_secs);
+}
 
 enum AudioCommand {
     Play {
@@ -321,9 +331,9 @@ fn audio_thread_main(
                 };
                 if sink.empty() {
                     let track_id = ctx.track_id.clone();
+                    let duration = ctx.duration_secs();
                     ctx.playing = false;
                     ctx.stop_sink();
-                    let duration = ctx.duration_secs();
                     update_state(
                         &shared_state,
                         PlaybackStatus::Stopped,
@@ -335,6 +345,7 @@ fn audio_thread_main(
                     emit_state(&app, PlaybackStatus::Stopped);
                     emit_position(&app, duration, duration);
                     if let Some(id) = track_id {
+                        record_listen(&app, &id, duration, duration);
                         let _ = app.emit("playback:ended", PlaybackEndedPayload { track_id: id });
                     }
                     ctx.track_id = None;

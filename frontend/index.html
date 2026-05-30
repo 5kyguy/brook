@@ -784,6 +784,13 @@
                     </form>
                 </header>
                 <div id="page-library" class="page">
+                    <section class="content-section" id="chart-playlists-section">
+                        <h2 class="section-title">Top charts</h2>
+                        <p class="stats-page-subtitle">
+                            Your most-played tracks. Weekly and monthly use sliding windows; quarterly and yearly follow the calendar. Refreshed daily.
+                        </p>
+                        <div class="card-grid" id="chart-playlists-container"></div>
+                    </section>
                     <section class="content-section">
                         <div class="library-header">
                             <h2>My Playlists</h2>
@@ -899,6 +906,10 @@
                 <div id="page-stats" class="page">
                     <h2 class="section-title">Your listening stats</h2>
                     <p class="stats-page-subtitle">Based on your plays in this app.</p>
+                    <label class="stats-year-picker stats-year-picker--header">
+                        <span>Wrap year</span>
+                        <select id="stats-year-select" class="library-filter-select"></select>
+                    </label>
                     <div id="stats-page-content"></div>
                 </div>
                 <section id="page-playlist" class="page">
