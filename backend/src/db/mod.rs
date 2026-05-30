@@ -167,18 +167,19 @@ impl Database {
 
         let sort_by = filter.sort_by.as_deref().unwrap_or("title");
         let sort_order = filter.sort_order.as_deref().unwrap_or("asc");
-        let sort_col = match sort_by {
-            "artist" => "t.artist",
-            "album" => "t.album",
-            "year" => "t.year",
-            _ => "t.title",
-        };
         let sort_dir = if sort_order.eq_ignore_ascii_case("desc") {
             "DESC"
         } else {
             "ASC"
         };
-        sql.push_str(&format!(" ORDER BY {sort_col} {sort_dir} COLLATE NOCASE"));
+        // COLLATE NOCASE applies only to text columns; using it on INTEGER (year) is a syntax error.
+        let order_by = match sort_by {
+            "artist" => format!("t.artist {sort_dir} COLLATE NOCASE"),
+            "album" => format!("t.album {sort_dir} COLLATE NOCASE"),
+            "year" => format!("t.year {sort_dir}"),
+            _ => format!("t.title {sort_dir} COLLATE NOCASE"),
+        };
+        sql.push_str(&format!(" ORDER BY {order_by}"));
 
         let mut stmt = self.conn.prepare(&sql).map_err(|e| e.to_string())?;
 
@@ -536,5 +537,46 @@ mod tests {
         assert!(db.toggle_favorite("song.flac").unwrap());
         let track = db.get_track("song.flac").unwrap();
         assert!(track.is_favorite);
+    }
+
+    #[test]
+    fn get_tracks_sort_by_year_does_not_use_collate() {
+        use crate::models::TrackFilter;
+
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let mut db = Database::open(&db_path).unwrap();
+
+        for (id, year) in [("a.flac", 2020), ("b.flac", 2024)] {
+            let file = ScannedFile {
+                id: id.into(),
+                relative_path: id.into(),
+                absolute_path: format!("/music/{id}"),
+                extension: "flac".into(),
+                file_size: 1,
+                modified_ms: 1,
+                has_lrc: false,
+                lrc_path: None,
+            };
+            let meta = TrackMetadata {
+                title: Some(id.into()),
+                artist: None,
+                album: None,
+                year: Some(year),
+                duration_secs: None,
+                embedded_lyrics: None,
+            };
+            db.upsert_track(&file, &meta).unwrap();
+        }
+
+        let filter = TrackFilter {
+            sort_by: Some("year".into()),
+            sort_order: Some("desc".into()),
+            ..Default::default()
+        };
+        let tracks = db.get_tracks(Some(&filter)).unwrap();
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].year, Some(2024));
     }
 }
