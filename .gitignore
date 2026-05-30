@@ -1,0 +1,7 @@
+# References (local copies, not committed)
+references/
+
+# Cursor
+.cursor/
+.cursorignore
+.markdownlint.json
