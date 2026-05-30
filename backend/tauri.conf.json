@@ -1,0 +1,31 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "Brook",
+    "version": "0.1.0",
+    "identifier": "dev.skyguy.brook",
+    "build": {
+        "beforeDevCommand": "bun run dev",
+        "devUrl": "http://localhost:5173",
+        "beforeBuildCommand": "bun run build",
+        "frontendDist": "../frontend/dist"
+    },
+    "app": {
+        "windows": [
+            {
+                "title": "Brook",
+                "width": 1280,
+                "height": 800,
+                "resizable": true
+            }
+        ],
+        "security": {
+            "capabilities": ["default"],
+            "csp": "default-src 'self' ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": ["icons/icon.png"]
+    }
+}

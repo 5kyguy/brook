@@ -5,3 +5,11 @@ references/
 .cursor/
 .cursorignore
 .markdownlint.json
+
+# Dependencies, build output, and Tauri / Rust
+node_modules/
+dist/
+frontend/dist/
+backend/target/
+backend/gen/
+bun.lock

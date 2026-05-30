@@ -73,7 +73,7 @@ Playback state reaches the UI through Tauri events (position, state, track chang
 
 ## Roadmap
 
-- [ ] Backend scaffold (`backend/` — Tauri 2, scanner, SQLite, metadata, lyrics, IPC commands)
+- [x] Backend scaffold (`backend/` — Tauri 2, scanner, SQLite, metadata, lyrics, IPC commands)
 - [ ] Rust playback engine (symphonia + rodio)
 - [ ] Frontend scaffold (`frontend/` — Monochrome-inspired UI shell)
 - [ ] Settings page
