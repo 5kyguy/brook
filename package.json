@@ -4,11 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite frontend",
-    "build": "vite build frontend",
+    "dev": "vite",
+    "build": "vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config backend/tauri.conf.json",
     "tauri:build": "tauri build --config backend/tauri.conf.json"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",

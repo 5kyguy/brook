@@ -1,0 +1,139 @@
+.empty-state,
+.scan-status {
+  color: var(--muted-foreground);
+  margin: 0 0 var(--spacing-md);
+}
+
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-list-header,
+.track-item {
+  display: grid;
+  grid-template-columns: 2rem 1.6fr 1fr 4rem 2rem;
+  gap: var(--space-3);
+  align-items: center;
+  text-align: left;
+}
+
+.track-list-header {
+  padding: var(--space-2) var(--space-3);
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.track-item {
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.track-item:hover {
+  background: var(--secondary);
+}
+
+.track-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.track-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist,
+.track-album {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-duration {
+  text-align: right;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+
+.like-btn {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+.like-btn.active {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.settings-list {
+  max-width: 720px;
+}
+
+.settings-group {
+  margin-bottom: var(--space-6);
+}
+
+.setting-item .label {
+  display: block;
+  font-weight: 600;
+}
+
+.setting-item .description {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
+}
+
+.theme-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.theme-option {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--secondary);
+}
+
+.theme-option.active {
+  border-color: var(--highlight);
+  box-shadow: inset 0 0 0 1px var(--highlight);
+}
+
+.settings-meta {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  word-break: break-all;
+}
+
+.search-box {
+  width: 100%;
+  max-width: 480px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  margin-bottom: var(--space-4);
+}
+
+.placeholder-card {
+  padding: var(--space-6);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted-foreground);
+}
