@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "clean": "./scripts/clean-dev.sh",
+    "clean:data": "./scripts/clean-dev.sh --data-only",
+    "clean:build": "./scripts/clean-dev.sh --build-only",
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config backend/tauri.conf.json",
     "tauri:build": "tauri build --config backend/tauri.conf.json"
