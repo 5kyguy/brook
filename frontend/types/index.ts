@@ -61,7 +61,21 @@ export interface ScanCompletePayload {
   trackCount: number;
 }
 
-export type RouteId = "library" | "search" | "settings" | "stats";
+export interface Playlist {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  trackCount: number;
+}
+
+export interface LibraryFacets {
+  artists: string[];
+  albums: string[];
+  years: number[];
+}
+
+export type RouteId = "library" | "recent" | "stats" | "settings" | "playlist";
 
 export interface RouteDefinition {
   id: RouteId;

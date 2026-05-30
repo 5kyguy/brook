@@ -1,5 +1,7 @@
 import type { PlaybackState, Track } from "../types";
 import { formatDuration, trackLabel, trackSubtitle } from "../ui/dom";
+import { SVG_PAUSE, SVG_PLAY } from "../ui/icons";
+import { setVolumeButtonMuted } from "../ui/shell";
 import * as api from "../api";
 
 export interface PlayerBar {
@@ -8,26 +10,32 @@ export interface PlayerBar {
   setProgress(positionSecs: number, durationSecs: number): void;
 }
 
+const PLACEHOLDER_TITLE = "Nothing playing";
+const PLACEHOLDER_ARTIST = "Pick a track from your library";
+
 export function initPlayerBar(): PlayerBar {
   const titleEl = document.querySelector<HTMLElement>(".now-playing-bar .details .title");
+  const albumEl = document.querySelector<HTMLElement>(".now-playing-bar .details .album");
   const artistEl = document.querySelector<HTMLElement>(".now-playing-bar .details .artist");
-  const playBtn = document.getElementById("play-pause-btn");
+  const playBtn = document.querySelector<HTMLButtonElement>(".now-playing-bar .play-pause-btn");
   const currentTimeEl = document.getElementById("current-time");
   const totalTimeEl = document.getElementById("total-duration");
   const progressBar = document.getElementById("progress-bar");
   const progressFill = document.getElementById("progress-fill");
   const volumeBar = document.getElementById("volume-bar");
   const volumeFill = document.getElementById("volume-fill");
+  const coverEl = document.querySelector<HTMLImageElement>(".now-playing-bar .cover");
 
   let currentTrack: Track | null = null;
   let playbackStatus: PlaybackState["status"] = "stopped";
   let durationSecs = 0;
+  let volume = 1;
 
   const updatePlayButton = () => {
     if (!playBtn) return;
     const playing = playbackStatus === "playing";
-    playBtn.textContent = playing ? "⏸" : "▶";
-    playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+    playBtn.innerHTML = playing ? SVG_PAUSE(20) : SVG_PLAY(20);
+    playBtn.title = playing ? "Pause" : "Play";
   };
 
   playBtn?.addEventListener("click", () => {
@@ -52,31 +60,45 @@ export function initPlayerBar(): PlayerBar {
   });
 
   volumeBar?.addEventListener("click", (event) => {
-    if (!volumeBar) return;
+    if (!volumeBar || !volumeFill) return;
     const rect = volumeBar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    volume = ratio;
     void api.playback.setVolume(ratio);
-    if (volumeFill) volumeFill.style.width = `${ratio * 100}%`;
+    const pct = ratio * 100;
+    volumeFill.style.setProperty("--volume-level", `${pct}%`);
+    volumeFill.style.width = `${pct}%`;
+    setVolumeButtonMuted(false, ratio);
   });
 
   return {
     sync(state) {
       playbackStatus = state.status;
       durationSecs = state.durationSecs;
+      volume = state.volume;
       updatePlayButton();
-      if (volumeFill) volumeFill.style.width = `${state.volume * 100}%`;
+      const pct = state.volume * 100;
+      if (volumeFill) {
+        volumeFill.style.setProperty("--volume-level", `${pct}%`);
+        volumeFill.style.width = `${pct}%`;
+      }
+      setVolumeButtonMuted(false, state.volume);
       this.setProgress(state.positionSecs, state.durationSecs);
     },
     setTrack(track) {
       currentTrack = track;
-      if (!titleEl || !artistEl) return;
+      if (!titleEl || !artistEl || !albumEl) return;
       if (!track) {
-        titleEl.textContent = "Select a song";
-        artistEl.textContent = "";
+        titleEl.textContent = PLACEHOLDER_TITLE;
+        albumEl.textContent = "";
+        artistEl.textContent = PLACEHOLDER_ARTIST;
+        if (coverEl) coverEl.src = "./assets/appicon.png";
         return;
       }
       titleEl.textContent = trackLabel(track);
-      artistEl.textContent = trackSubtitle(track);
+      albumEl.textContent = track.album ?? "";
+      artistEl.textContent = track.artist ?? trackSubtitle(track);
+      if (coverEl) coverEl.src = "./assets/appicon.png";
     },
     setProgress(positionSecs, duration) {
       durationSecs = duration;

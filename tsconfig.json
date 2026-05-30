@@ -9,5 +9,6 @@
     "isolatedModules": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["frontend/**/*.ts"]
+  "include": ["frontend/**/*.ts", "frontend/global.d.ts"],
+  "exclude": ["frontend/vite-plugin-svg-use.ts"]
 }

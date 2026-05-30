@@ -1,105 +1,1202 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Brook</title>
-    <link rel="stylesheet" href="/styles/main.css" />
-    <script>
-      try {
-        const theme = localStorage.getItem("brook-theme") || "monochrome";
-        document.documentElement.setAttribute("data-theme", theme);
-      } catch {}
-    </script>
-  </head>
-  <body>
-    <div id="offline-banner" class="offline-banner">
-      Run <code>bun run tauri:dev</code> for the full offline player.
-    </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="referrer" content="no-referrer" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <title>Brook</title>
+        <link rel="canonical" href="https://monochrome.tf/" />
+        <link rel="alternate" hreflang="en" href="https://monochrome.tf/" />
+        <meta name="theme-color" content="#000000" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <base href="./" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Brook" />
+        <meta
+            name="description"
+            content="Stream and download millions of Hi-Res FLACs, unreleased songs and music videos, all for free on Monochrome."
+        />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <meta property="og:type" content="website" />
+        <meta property="og:locale" content="en_US" />
+        <meta property="og:site_name" content="Monochrome" />
+        <meta property="og:title" content="Monochrome" />
+        <meta
+            property="og:description"
+            content="Stream and download millions of Hi-Res FLACs, unreleased songs and music videos, all for free on Monochrome."
+        />
+        <meta property="og:url" content="https://monochrome.tf/" />
+        <meta property="og:image" content="https://monochrome.tf/assets/banner.jpg" />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:alt" content="Monochrome banner" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content="https://monochrome.tf/" />
+        <meta name="twitter:title" content="Monochrome" />
+        <meta
+            name="twitter:description"
+            content="Stream and download millions of Hi-Res FLACs, unreleased songs and music videos, all for free on Monochrome."
+        />
+        <meta name="twitter:image" content="https://monochrome.tf/assets/banner-twitter.jpg" />
+        <meta name="twitter:image:alt" content="Monochrome banner" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "Monochrome",
+                "url": "https://monochrome.tf/",
+                "description": "Stream and download millions of Hi-Res FLACs, unreleased songs and music videos, all for free on Monochrome.",
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": "https://monochrome.tf/search/{search_term_string}",
+                    "query-input": "required name=search_term_string"
+                }
+            }
+        </script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "Monochrome",
+                "url": "https://monochrome.tf/",
+                "applicationCategory": "MusicApplication",
+                "operatingSystem": "Web Browser",
+                "image": "https://monochrome.tf/assets/logo.svg",
+                "description": "Stream and download millions of Hi-Res FLACs, unreleased songs and music videos, all for free on Monochrome."
+            }
+        </script>
+        <!-- bini's seo thing -->
+        <meta
+            name="ahrefs-site-verification"
+            content="889c6a5c1584832256b87bb36beaa665b40bb6e201582d416f04d074794044ef"
+        />
+        <meta name="google-site-verification" content="ChAPlKFJ5Dk2YbWhiUfnH5sHgCC8SnNdCBtjVcahArY" />
 
-    <div class="app-container">
-      <aside class="sidebar">
-        <div class="sidebar-logo">
-          <span>Brook</span>
-        </div>
-        <nav class="sidebar-nav main">
-          <ul>
-            <li class="nav-item">
-              <a href="/library">Library</a>
-            </li>
-            <li class="nav-item">
-              <a href="/search">Search</a>
-            </li>
-            <li class="nav-item">
-              <a href="/stats">Stats</a>
-            </li>
-            <li class="nav-item">
-              <a href="/settings">Settings</a>
-            </li>
-          </ul>
-        </nav>
-      </aside>
+        <!-- Preconnect to critical third-party origins -->
+        <link rel="preconnect" href="https://resources.tidal.com" crossorigin />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-      <main class="main-content">
-        <div id="page-library" class="page active">
-          <h2 class="section-title">Library</h2>
-          <p id="library-scan-status" class="scan-status"></p>
-          <div id="library-track-list" class="track-list"></div>
+        <link rel="apple-touch-icon" href="/assets/logo.svg" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            as="style"
+            href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+            rel="stylesheet"
+            media="print"
+            onload="this.media = 'all'"
+        />
+        <noscript>
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+                rel="stylesheet"
+            />
+        </noscript>
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Sans+HK:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Myanmar:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;500;600;700&family=Noto+Sans+Armenian:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap"
+            media="print"
+            onload="this.media = 'all'"
+        />
+        <noscript>
+            <link
+                rel="stylesheet"
+                href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Sans+HK:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Myanmar:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;500;600;700&family=Noto+Sans+Armenian:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap"
+            />
+        </noscript>
+        <script>
+            (() => {
+                try {
+                    const theme = localStorage.getItem('monochrome-theme') || localStorage.getItem('brook-theme');
+                    const css = localStorage.getItem('custom_theme_css');
+                    const palette = localStorage.getItem('monochrome-custom-theme');
+                    if (!theme) return;
+
+                    document.documentElement.setAttribute('data-theme', theme);
+
+                    if (theme === 'custom') {
+                        if (css) {
+                            let styleEl = document.getElementById('custom-theme-style');
+                            if (!styleEl) {
+                                styleEl = document.createElement('style');
+                                styleEl.id = 'custom-theme-style';
+                                document.head.appendChild(styleEl);
+                            }
+                            styleEl.textContent = css;
+                        } else if (palette) {
+                            const colors = JSON.parse(palette);
+                            const root = document.documentElement;
+                            for (const [key, value] of Object.entries(colors)) {
+                                root.style.setProperty(`--${key}`, value);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('theme loading failed', e);
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="./styles.css" />
+    </head>
+    <body>
+        <audio id="audio-player" crossorigin="anonymous" style="display: none"></audio>
+        <video id="video-player" crossorigin="anonymous" style="display: none"></video>
+
+        <div id="context-menu">
+            <ul>
+                <li data-action="shuffle-play-card" data-type-filter="album,playlist,mix,user-playlist">
+                    Shuffle play
+                </li>
+                <li data-action="start-infinite-radio" data-type-filter="track,album,playlist,user-playlist">
+                    Start Infinite Radio
+                </li>
+                <li data-action="start-mix" data-type-filter="album,track,video">Start mix</li>
+                <li data-action="play-next">Play next</li>
+                <li data-action="add-to-queue">Add to queue</li>
+                <li
+                    data-action="toggle-like"
+                    data-type-filter="album,artist,playlist,mix,user-playlist"
+                    data-label-album="Save album to library"
+                    data-label-unlike-album="Remove album from library"
+                    data-label-playlist="Save playlist to library"
+                    data-label-unlike-playlist="Remove playlist from library"
+                >
+                    Like
+                </li>
+                <li data-action="toggle-pin" data-type-filter="album,artist,playlist,user-playlist">Pin</li>
+                <li data-action="add-to-playlist" data-type-filter="track,video">Add to playlist</li>
+                <li data-action="request-song" data-type-filter="track,video">Request song</li>
+                <li data-action="go-to-artist" data-type-filter="track,album,video">Go to artist</li>
+                <li data-action="go-to-album" data-type-filter="track,video">Go to album</li>
+                <li data-action="copy-link">Copy link</li>
+                <li data-action="open-in-new-tab">Open in new tab</li>
+                <li data-action="open-in-harmony" data-type-filter="album">Open in Harmony</li>
+                <li data-action="track-info" data-type-filter="track,video">Track info</li>
+                <li data-action="open-original-url" data-type-filter="track,video">Open original URL</li>
+                <li data-action="download">Download</li>
+                <li class="separator"></li>
+                <li
+                    data-action="block-track"
+                    data-type-filter="track"
+                    data-label-block="Block track"
+                    data-label-unblock="Unblock track"
+                >
+                    Block track
+                </li>
+                <li
+                    data-action="block-album"
+                    data-type-filter="album,track"
+                    data-label-block="Block album"
+                    data-label-unblock="Unblock album"
+                >
+                    Block album
+                </li>
+                <li
+                    data-action="block-artist"
+                    data-type-filter="track,album,artist"
+                    data-label-block="Block artist"
+                    data-label-unblock="Unblock artist"
+                >
+                    Block artist
+                </li>
+            </ul>
         </div>
 
-        <div id="page-search" class="page">
-          <h2 class="section-title">Search</h2>
-          <input
-            id="search-input"
-            class="search-box"
-            type="search"
-            placeholder="Search tracks, artists, albums…"
-            disabled
-          />
-          <div id="search-results" class="placeholder-card">Search UI coming soon.</div>
+        <div id="sort-menu" style="display: none">
+            <ul>
+                <li data-sort="custom">Playlist Order</li>
+                <li data-sort="added-newest" class="requires-added-date">Date Added (Newest)</li>
+                <li data-sort="added-oldest" class="requires-added-date">Date Added (Oldest)</li>
+                <li data-sort="title">Title (A-Z)</li>
+                <li data-sort="artist">Artist (A-Z)</li>
+                <li data-sort="album">Album (A-Z)</li>
+            </ul>
         </div>
 
-        <div id="page-stats" class="page">
-          <h2 class="section-title">Stats</h2>
-          <div id="stats-content" class="placeholder-card">Listening stats coming soon.</div>
+        <div id="export-playlist-menu" style="display: none">
+            <ul>
+                <li data-export-format="csv">Export as CSV</li>
+                <li data-export-format="json">Export as JSON</li>
+            </ul>
         </div>
 
-        <div id="page-settings" class="page">
-          <h2 class="section-title">Settings</h2>
+        <div id="eq-node-context-menu">
+            <ul>
+                <li data-action="eq-channel-stereo" class="eq-ctx-channel">Stereo</li>
+                <li data-action="eq-channel-mid" class="eq-ctx-channel">Mid</li>
+                <li data-action="eq-channel-side" class="eq-ctx-channel">Side</li>
+                <li class="separator"></li>
+                <li data-action="eq-type-lowshelf" class="eq-ctx-type">Low Shelf</li>
+                <li data-action="eq-type-peaking" class="eq-ctx-type">Peaking</li>
+                <li data-action="eq-type-highshelf" class="eq-ctx-type">High Shelf</li>
+            </ul>
         </div>
-      </main>
 
-      <footer class="now-playing-bar">
-        <div class="track-info">
-          <img src="" alt="" class="cover" hidden />
-          <div class="details">
-            <div class="title">Select a song</div>
-            <div class="artist"></div>
-          </div>
+        <div id="eq-empty-context-menu">
+            <ul>
+                <li data-action="eq-add-node">Add Node</li>
+            </ul>
         </div>
-        <div class="player-controls">
-          <div class="buttons">
-            <button id="play-pause-btn" type="button" aria-label="Play">▶</button>
-          </div>
-          <div class="progress-container">
-            <span id="current-time">0:00</span>
-            <div id="progress-bar" class="progress-bar">
-              <div id="progress-fill" class="progress-fill"></div>
+
+        <div id="side-panel" class="side-panel">
+            <div id="side-panel-resizer" class="side-panel-resizer"></div>
+            <div class="panel-header">
+                <h3 id="side-panel-title">Panel</h3>
+                <div class="panel-controls" id="side-panel-controls">
+                    <!-- Controls injected dynamically -->
+                </div>
             </div>
-            <span id="total-duration">0:00</span>
-          </div>
-        </div>
-        <div class="volume-controls">
-          <div class="volume-slider-row">
-            <span>Vol</span>
-            <div id="volume-bar" class="volume-bar">
-              <div id="volume-fill" class="volume-fill" style="width: 100%"></div>
+            <div id="side-panel-content" class="panel-content">
+                <!-- Content injected dynamically -->
             </div>
-          </div>
         </div>
-      </footer>
-    </div>
+        <div id="playlist-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3 id="playlist-modal-title">Create Playlist</h3>
+                <input
+                    type="text"
+                    id="playlist-name-input"
+                    class="template-input"
+                    placeholder="Playlist name"
+                    style="margin: 1rem 0"
+                />
+                <div
+                    id="playlist-cover-wrapper"
+                    style="margin: 0.5rem 0; display: flex; gap: 0.5rem; align-items: stretch"
+                >
+                    <input
+                        type="url"
+                        id="playlist-cover-input"
+                        class="template-input"
+                        placeholder="Cover image URL"
+                        style="flex: 1; margin: 0; display: none"
+                    />
+                    <input type="file" id="playlist-cover-file-input" accept="image/*" style="display: none" />
+                    <button
+                        type="button"
+                        id="playlist-cover-upload-btn"
+                        class="template-btn"
+                        style="
+                            flex: 1;
+                            padding: 0.5rem;
+                            font-size: 0.85rem;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 0.5rem;
+                        "
+                    >
+                        <use svg="!lucide/upload.svg" size="16" />
+                        <span id="playlist-cover-btn-text">Upload</span>
+                    </button>
+                    <button
+                        type="button"
+                        id="playlist-cover-toggle-url-btn"
+                        class="template-btn"
+                        style="padding: 0.5rem; font-size: 0.85rem; white-space: nowrap"
+                        title="Switch to URL input"
+                    >
+                        or URL
+                    </button>
+                </div>
+                <div
+                    id="playlist-cover-upload-status"
+                    style="display: none; margin: -0.25rem 0 0.5rem 0; font-size: 0.75rem; opacity: 0.8"
+                >
+                    <span id="playlist-cover-upload-text"></span>
+                </div>
+                <textarea
+                    id="playlist-description-input"
+                    class="template-input"
+                    placeholder="Description (optional)"
+                    style="margin: 0.5rem 0; min-height: 80px; resize: vertical"
+                ></textarea>
+                <br />
+                <div
+                    id="import-section"
+                    style="
+                        display: none;
+                        margin: 1rem 0;
+                        padding: 1rem;
+                        border: 1px solid var(--border);
+                        border-radius: var(--radius);
+                        background: var(--background-secondary);
+                    "
+                >
+                    <div
+                        class="import-tabs"
+                        style="
+                            display: flex;
+                            gap: 0.5rem;
+                            margin-bottom: 1rem;
+                            border-bottom: 1px solid var(--border);
+                            padding-bottom: 0.5rem;
+                        "
+                    >
+                        <button
+                            type="button"
+                            class="import-tab active"
+                            data-import-type="csv"
+                            style="
+                                background: transparent;
+                                border: none;
+                                color: var(--foreground);
+                                cursor: pointer;
+                                padding: 0.25rem 0.5rem;
+                            "
+                        >
+                            CSV
+                        </button>
+                        <button
+                            type="button"
+                            class="import-tab"
+                            data-import-type="jspf"
+                            style="
+                                background: transparent;
+                                border: none;
+                                color: var(--foreground);
+                                cursor: pointer;
+                                padding: 0.25rem 0.5rem;
+                                opacity: 0.7;
+                            "
+                        >
+                            JSPF
+                        </button>
+                        <button
+                            type="button"
+                            class="import-tab"
+                            data-import-type="xspf"
+                            style="
+                                background: transparent;
+                                border: none;
+                                color: var(--foreground);
+                                cursor: pointer;
+                                padding: 0.25rem 0.5rem;
+                                opacity: 0.7;
+                            "
+                        >
+                            XSPF
+                        </button>
+                        <button
+                            type="button"
+                            class="import-tab"
+                            data-import-type="xml"
+                            style="
+                                background: transparent;
+                                border: none;
+                                color: var(--foreground);
+                                cursor: pointer;
+                                padding: 0.25rem 0.5rem;
+                                opacity: 0.7;
+                            "
+                        >
+                            XML
+                        </button>
+                        <button
+                            type="button"
+                            class="import-tab"
+                            data-import-type="m3u"
+                            style="
+                                background: transparent;
+                                border: none;
+                                color: var(--foreground);
+                                cursor: pointer;
+                                padding: 0.25rem 0.5rem;
+                                opacity: 0.7;
+                            "
+                        >
+                            M3U
+                        </button>
+                    </div>
 
-    <script type="module" src="/main.ts"></script>
-  </body>
+                    <div id="csv-import-panel" class="import-panel active">
+                        <p style="margin-bottom: 0.5rem; font-size: 0.9rem">Import from CSV</p>
+
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+                            <button
+                                type="button"
+                                id="csv-spotify-btn"
+                                class="btn-secondary"
+                                style="flex: 1; opacity: 0.7"
+                            >
+                                Spotify
+                            </button>
+                            <button
+                                type="button"
+                                id="csv-apple-btn"
+                                class="btn-secondary"
+                                style="flex: 1; opacity: 0.7"
+                            >
+                                Apple Music
+                            </button>
+                            <button type="button" id="csv-ytm-btn" class="btn-secondary" style="flex: 1; opacity: 0.7">
+                                YouTube Music
+                            </button>
+                        </div>
+
+                        <div id="csv-spotify-guide" style="display: none; margin-bottom: 1rem">
+                            <p style="font-size: 0.8rem; margin: 0">
+                                Please use
+                                <a href="https://exportify.app/" target="_blank" style="text-decoration: underline"
+                                    >Exportify</a
+                                >
+                                to export your Spotify playlist into a .csv.
+                            </p>
+                        </div>
+
+                        <div id="csv-apple-guide" style="display: none; margin-bottom: 1rem">
+                            <p style="font-size: 0.8rem; margin: 0">
+                                Please use
+                                <a
+                                    href="https://www.tunemymusic.com/transfer/spotify-to-apple-music"
+                                    target="_blank"
+                                    style="text-decoration: underline"
+                                    >TuneMyMusic</a
+                                >
+                                to export your Apple Music playlist into a .csv. <br /><span style="opacity: 0.7"
+                                    >(Apple Music imports are prone to errors)</span
+                                >
+                            </p>
+                        </div>
+
+                        <div id="csv-ytm-guide" style="display: none; margin-bottom: 1rem">
+                            <p style="font-size: 0.8rem; margin: 0 0 0.5rem 0">Paste a YouTube Music Playlist URL.</p>
+                            <input
+                                type="text"
+                                id="ytm-url-input"
+                                class="template-input"
+                                placeholder="https://music.youtube.com/playlist?list=..."
+                                style="width: 100%; margin-bottom: 0.5rem"
+                            />
+                            <p id="ytm-status" style="font-size: 0.8rem; margin: 0; opacity: 0.7"></p>
+                        </div>
+
+                        <div id="csv-input-container" style="display: none">
+                            <input
+                                type="file"
+                                id="csv-file-input"
+                                class="btn-secondary"
+                                accept=".csv"
+                                style="width: 100%; margin-bottom: 0.5rem"
+                            />
+                            <p style="font-size: 0.8rem; margin: 0; opacity: 0.7">
+                                Make sure its headers are in English.
+                            </p>
+                        </div>
+
+                        <div
+                            class="setting-item"
+                            style="margin-top: 1rem; margin-bottom: 1rem; background: transparent"
+                        >
+                            <div class="info">
+                                <span style="font-size: 0.9rem; font-weight: 600">Strict Album Matching</span>
+                                <span style="font-size: 0.8rem; max-width: 14rem">
+                                    Album name should strictly match CSV metadata. Disable for better discovery.
+                                </span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="strict-album-match-toggle" />
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="jspf-import-panel" class="import-panel" style="display: none">
+                        <p style="margin-bottom: 0.5rem; font-size: 0.9rem">Import from JSPF</p>
+                        <p style="font-size: 0.8rem; margin: 0">
+                            JSPF (JSON Shareable Playlist Format) is supported by many media players. Import playlists
+                            with rich metadata including MusicBrainz identifiers.
+                        </p>
+                        <br />
+                        <input
+                            type="file"
+                            id="jspf-file-input"
+                            class="btn-secondary"
+                            accept=".json,.jspf"
+                            style="width: 100%; margin-bottom: 0.5rem"
+                        />
+                    </div>
+
+                    <div id="xspf-import-panel" class="import-panel" style="display: none">
+                        <p style="margin-bottom: 0.5rem; font-size: 0.9rem">Import from XSPF</p>
+                        <p style="font-size: 0.8rem; margin: 0">
+                            XSPF (XML Shareable Playlist Format) is a standard XML playlist format supported by many
+                            media players including VLC, Audacious, and Clementine.
+                        </p>
+                        <br />
+                        <input
+                            type="file"
+                            id="xspf-file-input"
+                            class="btn-secondary"
+                            accept=".xspf,.xml"
+                            style="width: 100%; margin-bottom: 0.5rem"
+                        />
+                    </div>
+
+                    <div id="xml-import-panel" class="import-panel" style="display: none">
+                        <p style="margin-bottom: 0.5rem; font-size: 0.9rem">Import from XML</p>
+                        <p style="font-size: 0.8rem; margin: 0">
+                            Import playlists from generic XML formats including iTunes XML playlists, Winamp XML, and
+                            other custom XML playlist formats.
+                        </p>
+                        <br />
+                        <input
+                            type="file"
+                            id="xml-file-input"
+                            class="btn-secondary"
+                            accept=".xml"
+                            style="width: 100%; margin-bottom: 0.5rem"
+                        />
+                    </div>
+
+                    <div id="m3u-import-panel" class="import-panel" style="display: none">
+                        <p style="margin-bottom: 0.5rem; font-size: 0.9rem">Import from M3U/M3U8</p>
+                        <p style="font-size: 0.8rem; margin: 0">
+                            M3U is the most widely supported playlist format. Import from any M3U or M3U8 playlist file.
+                            Track information is extracted from the extended M3U format.
+                        </p>
+                        <br />
+                        <input
+                            type="file"
+                            id="m3u-file-input"
+                            class="btn-secondary"
+                            accept=".m3u,.m3u8"
+                            style="width: 100%; margin-bottom: 0.5rem"
+                        />
+                    </div>
+
+                    <p style="font-size: 0.8rem; margin: 0">
+                        <b>Warning:</b> This feature isn't perfect and is prone to errors! Please check your playlist
+                        after to remove any unwanted songs that were added by the system.
+                    </p>
+                </div>
+
+                <div
+                    id="playlist-public-setting"
+                    class="setting-item"
+                    style="margin-bottom: 1rem; padding: 0; border: none; background: transparent"
+                >
+                    <div class="info">
+                        <span class="label">Public Playlist</span>
+                        <span class="description">Visible to anyone with the link.</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="playlist-public-toggle" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="playlist-share-btn" class="btn-secondary" style="display: none">Share</button>
+                    <button id="playlist-modal-cancel" class="btn-secondary">Cancel</button>
+                    <button id="playlist-modal-save" class="btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+        <div id="playlist-select-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3>Add to Playlist</h3>
+                <div id="playlist-select-list" class="modal-list">
+                    <!-- Options will be injected here -->
+                </div>
+                <div class="modal-actions">
+                    <button id="playlist-select-cancel" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="goto-playlist-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3>Go to Playlist</h3>
+                <div id="goto-playlist-list" class="modal-list">
+                    <!-- Options will be injected here -->
+                </div>
+                <div class="modal-actions">
+                    <button id="goto-playlist-cancel" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="shortcuts-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content medium">
+                <div class="shortcuts-header">
+                    <h3>Keyboard Shortcuts</h3>
+                    <button class="close-shortcuts">&times;</button>
+                </div>
+                <div class="shortcuts-content">
+                    <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
+                    <div class="shortcut-item"><kbd>→</kbd><span>Seek forward 10s</span></div>
+                    <div class="shortcut-item"><kbd>←</kbd><span>Seek backward 10s</span></div>
+                    <div class="shortcut-item"><kbd>Shift</kbd> + <kbd>→</kbd><span>Next track</span></div>
+                    <div class="shortcut-item"><kbd>Shift</kbd> + <kbd>←</kbd><span>Previous track</span></div>
+                    <div class="shortcut-item"><kbd>↑</kbd><span>Volume up</span></div>
+                    <div class="shortcut-item"><kbd>↓</kbd><span>Volume down</span></div>
+                    <div class="shortcut-item"><kbd>M</kbd><span>Mute / Unmute</span></div>
+                    <div class="shortcut-item"><kbd>S</kbd><span>Toggle shuffle</span></div>
+                    <div class="shortcut-item"><kbd>R</kbd><span>Toggle repeat</span></div>
+                    <div class="shortcut-item"><kbd>Q</kbd><span>Open queue</span></div>
+                    <div class="shortcut-item"><kbd>L</kbd><span>Toggle lyrics</span></div>
+                    <div class="shortcut-item"><kbd>/</kbd><span>Focus search</span></div>
+                    <div class="shortcut-item"><kbd>Esc</kbd><span>Close modals</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="customize-shortcuts-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content medium">
+                <div class="shortcuts-header">
+                    <h3>Customize Shortcuts</h3>
+                    <button class="close-customize-shortcuts">&times;</button>
+                </div>
+                <div class="customize-shortcuts-content">
+                    <div id="shortcuts-list" class="shortcuts-list"></div>
+                </div>
+                <div class="customize-shortcuts-actions">
+                    <button id="reset-shortcuts-btn" class="btn-secondary">Reset to Defaults</button>
+                    <button id="close-customize-shortcuts-btn" class="btn-primary">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="sidebar-overlay"></div>
+        <div class="app-container">
+            <aside class="sidebar">
+                <div class="sidebar-content">
+                    <div class="sidebar-logo">
+                        <a href="/library" class="sidebar-logo-link">
+                            <use svg="./images/monochrome-logo.svg" size="200" class="app-logo" />
+                            <span>Brook</span>
+                        </a>
+                        <button
+                            type="button"
+                            id="sidebar-toggle"
+                            class="btn-icon desktop-only"
+                            style="margin-left: auto"
+                            title="Collapse Sidebar"
+                        >
+                            <use svg="!lucide/chevron-left.svg" size="20" />
+                        </button>
+                    </div>
+
+                    <nav class="sidebar-nav main">
+                        <ul>
+                            <li class="nav-item" id="sidebar-nav-library">
+                                <a href="/library">
+                                    <use svg="!lucide/library.svg" size="24" />
+                                    <span>Library</span>
+                                </a>
+                            </li>
+                            <li class="nav-item" id="sidebar-nav-recent">
+                                <a href="/recent">
+                                    <use svg="./images/recent.svg" size="24" />
+                                    <span>Recent</span>
+                                </a>
+                            </li>
+                            <li class="nav-item" id="sidebar-nav-stats">
+                                <a href="/stats">
+                                    <use svg="./images/squares.svg" size="24" />
+                                    <span>Stats</span>
+                                </a>
+                            </li>
+                            <li class="nav-item" id="sidebar-nav-settings">
+                                <a href="/settings">
+                                    <use svg="!lucide/settings.svg" size="24" />
+                                    <span>Settings</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="sidebar-bottom-container">
+                        <nav class="sidebar-nav" id="pinned-items-nav" style="display: none">
+                            <h4 class="pinned-items-header">Pinned</h4>
+                            <ul id="pinned-items-list">
+                                <!-- Pinned should be injected here -->
+                            </ul>
+                        </nav>
+
+                        <div class="sidebar-nav-bottom">
+                            <nav class="sidebar-nav bottom">
+                                <ul>
+                                    <li class="nav-item" id="sidebar-nav-about-bottom">
+                                        <a href="/about">
+                                            <use svg="!lucide/info.svg" size="24" />
+                                            <span>About</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item" id="sidebar-nav-githubbtn">
+                                        <a href="https://github.com/5kyguy/monochrome" target="_blank" rel="noopener noreferrer">
+                                            <use svg="./images/github.svg" size="24" />
+                                            <span>GitHub</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <div id="page-background"></div>
+                <header class="main-header">
+                    <div class="navigation-controls desktop-only">
+                        <button id="nav-back" class="nav-btn" title="Go Back">
+                            <use svg="!lucide/chevron-left.svg" size="24" />
+                        </button>
+                        <button id="nav-forward" class="nav-btn" title="Go Forward">
+                            <use svg="!lucide/chevron-right.svg" size="24" />
+                        </button>
+                    </div>
+                    <button class="hamburger-menu" id="hamburger-btn" title="Open navigation">
+                        <use svg="!lucide/menu.svg" size="24" />
+                    </button>
+                    <form class="search-bar" id="search-form">
+                        <use svg="!lucide/search.svg" class="search-icon" size="24" />
+                        <input
+                            type="search"
+                            id="search-input"
+                            placeholder="Search for tracks, artists, albums..."
+                            autocomplete="off"
+                            autocorrect="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                        />
+                        <button
+                            type="button"
+                            class="search-clear-btn btn-icon"
+                            title="Clear search"
+                            style="display: none"
+                        >
+                            &times;
+                        </button>
+                        <div id="search-history" class="search-history" style="display: none"></div>
+                    </form>
+                </header>
+                <div id="page-library" class="page">
+                    <section class="content-section">
+                        <div class="library-header">
+                            <h2>My Playlists</h2>
+                        </div>
+                        <div class="card-grid" id="my-playlists-container">
+                            <button
+                                type="button"
+                                class="card library-create-dashed-card"
+                                id="library-create-playlist-card"
+                            >
+                                <div class="library-create-dashed-art">
+                                    <use svg="!lucide/list-music.svg" size="28" />
+                                </div>
+                                <div class="card-info">
+                                    <h4 class="card-title">Create playlist</h4>
+                                </div>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="content-section">
+                        <h2 class="section-title">Favorites</h2>
+                        <div class="search-tabs">
+                            <button class="search-tab active" data-tab="tracks">Liked Tracks</button>
+                            <button class="search-tab" data-tab="local">Local Files</button>
+                        </div>
+                        <div class="search-tab-content active" id="library-tab-tracks">
+                            <div
+                                id="library-liked-tracks-toolbar"
+                                class="library-liked-tracks-toolbar"
+                                style="display: none"
+                            >
+                                <form class="library-liked-search track-list-search-container" onsubmit="return false;">
+                                    <use svg="!lucide/search.svg" class="search-icon" size="18" />
+                                    <input
+                                        type="search"
+                                        id="library-liked-tracks-search"
+                                        class="track-list-search-input"
+                                        placeholder="Search liked tracks..."
+                                        autocomplete="off"
+                                        autocorrect="off"
+                                        autocapitalize="off"
+                                        spellcheck="false"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="search-clear-btn btn-icon"
+                                        title="Clear search"
+                                        style="display: none"
+                                    >
+                                        &times;
+                                    </button>
+                                </form>
+                                <div class="library-liked-tracks-toolbar-actions">
+                                    <button
+                                        type="button"
+                                        id="library-liked-tracks-view-list"
+                                        class="btn-icon library-liked-view-btn"
+                                        title="List view"
+                                    >
+                                        <use svg="!lucide/layout-list.svg" size="18" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        id="library-liked-tracks-view-grid"
+                                        class="btn-icon library-liked-view-btn"
+                                        title="Card view"
+                                    >
+                                        <use svg="!lucide/layout-grid.svg" size="18" />
+                                    </button>
+                                    <button
+                                        id="shuffle-liked-tracks-btn"
+                                        class="btn-secondary"
+                                        style="
+                                            width: 32px;
+                                            height: 32px;
+                                            padding: 0;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border-radius: 50%;
+                                        "
+                                        title="Shuffle Liked Tracks"
+                                    >
+                                        <use svg="!lucide/shuffle.svg" size="16" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="track-list" id="library-tracks-container"></div>
+                        </div>
+                        <div class="search-tab-content" id="library-tab-local">
+                            <div class="track-list" id="library-local-container">
+                                <p id="library-scan-status" style="padding: 12px 16px; opacity: 0.8; font-size: 0.9rem"></p>
+                                <div id="library-filters" class="library-liked-tracks-toolbar"></div>
+                                <div id="local-files-list"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div id="page-recent" class="page">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem"
+                    >
+                        <h2 class="section-title" style="margin-bottom: 0">Recently played</h2>
+                        <button class="btn-secondary" id="clear-history-btn" title="Clear History">
+                            <use svg="!lucide/trash-2.svg" size="16" />
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                    <div class="track-list" id="recent-tracks-container"></div>
+                </div>
+
+                <div id="page-stats" class="page">
+                    <h2 class="section-title">Your listening stats</h2>
+                    <p class="stats-page-subtitle">Based on your plays in this app.</p>
+                    <div id="stats-page-content"></div>
+                </div>
+                <section id="page-playlist" class="page">
+                    <header class="detail-header">
+                        <div class="detail-header-cover-container">
+                            <img
+                                id="playlist-detail-image"
+                                src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                                class="detail-header-image"
+                                alt="Playlist Cover"
+                            />
+                            <div id="playlist-detail-collage" class="detail-header-collage" style="display: none"></div>
+                        </div>
+                        <div class="detail-header-info">
+                            <h1 class="title" id="playlist-detail-title"></h1>
+                            <div class="meta" id="playlist-detail-meta"></div>
+                            <div class="meta" id="playlist-detail-description" class="detail-description"></div>
+                            <div class="detail-header-actions">
+                                <button id="play-playlist-btn" class="btn-primary" title="Play">
+                                    <use svg="./images/play.svg" size="20" />
+                                    <span>Play</span>
+                                </button>
+                                <button id="shuffle-playlist-btn" class="btn-primary" title="Shuffle">
+                                    <use svg="!lucide/shuffle.svg" size="18" />
+                                    <span>Shuffle</span>
+                                </button>
+                                <button id="download-playlist-btn" class="btn-primary" title="Download">
+                                    <use svg="!lucide/download.svg" size="20" />
+                                    <span>Download</span>
+                                </button>
+                                <button
+                                    id="like-playlist-btn"
+                                    class="btn-secondary like-btn"
+                                    data-action="toggle-like"
+                                    data-type="playlist"
+                                    title="Save to Favorites"
+                                >
+                                    <use svg="!lucide/heart.svg" class="heart-icon" size="20" />
+                                    <span>Save</span>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+                    <form class="track-list-search-container" onsubmit="return false;">
+                        <use svg="!lucide/search.svg" class="search-icon" size="20" />
+                        <input
+                            type="search"
+                            id="track-list-search-input"
+                            placeholder="Search tracks..."
+                            class="track-list-search-input"
+                            autocomplete="off"
+                            autocorrect="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                        />
+                        <button
+                            type="button"
+                            class="search-clear-btn btn-icon"
+                            title="Clear search"
+                            style="display: none"
+                        >
+                            &times;
+                        </button>
+                    </form>
+                    <div id="playlist-detail-tracklist" class="track-list"></div>
+                </section>
+                <div id="page-settings" class="page">
+                    <h2 class="section-title">Settings</h2>
+                    <div class="settings-list">
+                            <div class="settings-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Theme</span>
+                                        <span class="description">Choose your preferred color scheme</span>
+                                    </div>
+                                </div>
+                                <div class="theme-picker" id="theme-picker">
+                                    <div class="theme-option" data-theme="monochrome">Black</div>
+                                    <div class="theme-option" data-theme="white">White</div>
+                                    <div class="theme-option" data-theme="ocean">Ocean</div>
+                                    <div class="theme-option" data-theme="purple">Purple</div>
+                                    <div class="theme-option" data-theme="forest">Forest</div>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Waveform Seekbar</span>
+                                        <span class="description"
+                                            >Show a visual waveform of the track in the progress bar
+                                            (Experimental)</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="waveform-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Album Cover Background</span>
+                                        <span class="description"
+                                            >Use the album cover as a blurred background on album pages and as primary
+                                            color</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="album-background-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Dynamic Colors</span>
+                                        <span class="description"
+                                            >Automatically change the app accent color based on the currently playing
+                                            track's album art</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="dynamic-color-toggle" checked />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Full-screen Visualizer</span>
+                                        <span class="description">Enable the visualizer in full-screen mode</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="visualizer-enabled-toggle" checked />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-group">
+                                <div class="setting-item" id="cd-album-cover-setting">
+                                    <div class="info">
+                                        <span class="label" id="cd-album-cover-label">CD Album Cover</span>
+                                        <span class="description" id="cd-album-cover-description"
+                                            >Spin album cover and add CD hole in fullscreen</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            id="cd-album-cover-toggle"
+                                            aria-labelledby="cd-album-cover-label"
+                                            aria-describedby="cd-album-cover-description"
+                                        />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Keyboard Shortcuts</span>
+                                        <span class="description">View and customize keyboard shortcuts</span>
+                                    </div>
+                                    <button id="customize-shortcuts-btn" class="btn-secondary">Customize</button>
+                                </div>
+                            </div>
+                            <p
+                                id="settings-music-root"
+                                style="
+                                    text-align: center;
+                                    color: var(--muted-foreground);
+                                    font-size: 0.8rem;
+                                    padding: 0.5rem 1rem 0;
+                                    word-break: break-all;
+                                "
+                            ></p>
+                            <p
+                                id="settings-commit-info"
+                                style="
+                                    text-align: center;
+                                    color: var(--muted-foreground);
+                                    font-size: 0.75rem;
+                                    padding: 1rem 0 0.5rem;
+                                "
+                            ></p>
+                    </div>
+                </div>
+            </main>
+
+            <footer class="now-playing-bar">
+                <div class="track-info">
+                    <img src="./assets/appicon.png" alt="Current Track Cover" class="cover" fetchpriority="high" />
+                    <div class="details">
+                        <div class="title">Nothing playing</div>
+                        <div class="album"></div>
+                        <div class="artist">Pick a track from your library</div>
+                    </div>
+                </div>
+                <div class="player-controls">
+                    <div id="radio-loading-indicator">
+                        <div class="animate-spin"></div>
+                        <span>Finding more songs for you...</span>
+                    </div>
+                    <div class="buttons">
+                        <button id="shuffle-btn" title="Shuffle">
+                            <use svg="!lucide/shuffle.svg" size="24" />
+                        </button>
+                        <button id="prev-btn" title="Previous">
+                            <use svg="!lucide/arrow-left-to-line.svg" size="24" />
+                        </button>
+                        <button class="play-pause-btn" title="Play"></button>
+                        <button id="next-btn" title="Next">
+                            <use svg="!lucide/arrow-right-to-line.svg" size="24" />
+                        </button>
+                        <button id="repeat-btn" title="Repeat">
+                            <use svg="!lucide/repeat.svg" size="24" />
+                        </button>
+                    </div>
+                    <div class="progress-container">
+                        <span id="current-time">0:00</span>
+                        <div id="progress-bar" class="progress-bar">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <span id="total-duration">0:00</span>
+                    </div>
+                </div>
+                <div class="volume-controls">
+                    <div class="player-actions-row">
+                        <button
+                            id="now-playing-party-btn"
+                            class="now-playing-party-btn"
+                            title="Open listening party"
+                            aria-label="Open listening party"
+                            style="display: none"
+                        >
+                            <use svg="!lucide/users.svg" size="20" />
+                        </button>
+                        <button
+                            id="now-playing-like-btn"
+                            class="like-btn"
+                            data-action="toggle-like"
+                            title="Save to Favorites"
+                            style="display: none"
+                        ></button>
+                        <button
+                            id="now-playing-add-playlist-btn"
+                            title="Add to playlist"
+                            class="desktop-only"
+                            aria-label="Add to playlist"
+                        >
+                            <use svg="!lucide/list-plus.svg" size="20" />
+                        </button>
+
+                        <button
+                            id="now-playing-mix-btn"
+                            class="mix-btn"
+                            data-action="track-mix"
+                            title="Track Mix"
+                            style="display: none"
+                        >
+                            <use svg="./images/mix.svg" size="20" />
+                        </button>
+                        <button id="toggle-lyrics-btn" title="Lyrics" style="display: none" aria-label="Lyrics">
+                            <use svg="!lucide/mic-vocal.svg" size="20" />
+                        </button>
+                        <button id="download-current-btn" title="Download current track" class="desktop-only">
+                            <use svg="!lucide/download.svg" size="20" />
+                        </button>
+                        <button id="cast-btn" title="Cast">
+                            <use svg="!lucide/cast.svg" size="20" />
+                        </button>
+
+                        <button
+                            id="mobile-add-playlist-btn"
+                            class="mobile-only"
+                            title="Add to playlist"
+                            aria-label="Add to playlist"
+                        >
+                            <use svg="!lucide/list-plus.svg" size="20" />
+                        </button>
+                        <button id="sleep-timer-btn" title="Sleep Timer" class="mobile-only">
+                            <use svg="!lucide/clock.svg" size="20" />
+                        </button>
+                        <button id="queue-btn" title="Queue">
+                            <use svg="!lucide/list.svg" size="24" />
+                        </button>
+                    </div>
+                    <div class="volume-slider-row desktop-only">
+                        <button id="volume-btn" title="Mute"></button>
+                        <div id="volume-bar" class="volume-bar">
+                            <div id="volume-fill" class="volume-fill"></div>
+                        </div>
+                        <button id="sleep-timer-btn-desktop" title="Sleep Timer">
+                            <use svg="!lucide/clock.svg" size="20" />
+                        </button>
+                    </div>
+                </div>
+            </footer>
+        </div>
+        <script type="module" src="/main.ts"></script>
+    </body>
 </html>

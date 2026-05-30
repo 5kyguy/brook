@@ -23,6 +23,11 @@ export async function getTrack(id: string): Promise<Track> {
   return invoke<Track>("get_track", { id });
 }
 
+export async function getFavorites(): Promise<Track[]> {
+  requireTauri();
+  return invoke<Track[]>("get_favorites");
+}
+
 export async function toggleFavorite(trackId: string): Promise<boolean> {
   requireTauri();
   return invoke<boolean>("toggle_favorite", { trackId });

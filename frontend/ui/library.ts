@@ -1,78 +1,91 @@
 import * as api from "../api";
 import type { Track } from "../types";
-import { clearChildren, el, formatDuration, trackLabel, trackSubtitle } from "./dom";
+import { buildFacets, filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
+import { renderTrackList } from "./track-list";
 
 export interface LibraryPage {
   refresh(): Promise<void>;
+  refreshFacets(): Promise<void>;
+  refreshLiked(): Promise<void>;
   setScanStatus(message: string): void;
+  getPlayingTrackId(): string | null;
+  setPlayingTrackId(id: string | null): void;
 }
 
 export function initLibraryPage(
   onPlay: (track: Track) => void,
   onToggleFavorite: (track: Track) => void,
+  onAddToPlaylist: (track: Track) => void,
 ): LibraryPage {
   const statusEl = document.getElementById("library-scan-status");
-  const listEl = document.getElementById("library-track-list");
-  if (!listEl) {
-    throw new Error("Missing #library-track-list");
+  const likedContainer = document.getElementById("library-tracks-container");
+  const localListEl = document.getElementById("local-files-list");
+  const filtersMount = document.getElementById("library-filters");
+  const likedToolbar = document.getElementById("library-liked-tracks-toolbar");
+
+  if (!likedContainer || !localListEl) {
+    throw new Error("Missing library containers");
   }
 
-  let tracks: Track[] = [];
+  let likedTracks: Track[] = [];
+  let localTracks: Track[] = [];
+  let playingTrackId: string | null = null;
+  const filterBar: FilterBar | null = filtersMount ? initFilterBar(filtersMount) : null;
 
-  const render = () => {
-    clearChildren(listEl);
-    if (tracks.length === 0) {
-      listEl.appendChild(el("p", "empty-state", "No tracks found in your music folder."));
-      return;
+  const listOptions = (tracks: Track[]) => ({
+    onPlay,
+    onToggleFavorite,
+    onAddToPlaylist,
+    playingTrackId,
+    showInlineLike: true,
+  });
+
+  const renderLiked = () => {
+    if (likedTracks.length > 0 && likedToolbar) {
+      likedToolbar.style.display = "flex";
+    } else if (likedToolbar) {
+      likedToolbar.style.display = "none";
     }
-
-    const header = el("div", "track-list-header");
-    header.append(
-      el("span", "", "#"),
-      el("span", "", "Title"),
-      el("span", "", "Album"),
-      el("span", "", "Duration"),
-      el("span", "", ""),
-    );
-    listEl.appendChild(header);
-
-    tracks.forEach((track, index) => {
-      const row = el("button", "track-item");
-      row.type = "button";
-      row.dataset.trackId = track.id;
-
-      const indexCell = el("span", "track-index", String(index + 1));
-      const main = el("div", "track-main");
-      const title = el("span", "track-title", trackLabel(track));
-      const artist = el("span", "track-artist", trackSubtitle(track));
-      main.append(title, artist);
-
-      const album = el("span", "track-album", track.album ?? "—");
-      const duration = el(
-        "span",
-        "track-duration",
-        track.durationSecs != null ? formatDuration(track.durationSecs) : "—",
-      );
-
-      const like = el("button", `like-btn${track.isFavorite ? " active" : ""}`);
-      like.type = "button";
-      like.title = track.isFavorite ? "Unlike" : "Like";
-      like.textContent = track.isFavorite ? "♥" : "♡";
-      like.addEventListener("click", (event) => {
-        event.stopPropagation();
-        void onToggleFavorite(track);
-      });
-
-      row.append(indexCell, main, album, duration, like);
-      row.addEventListener("click", () => onPlay(track));
-      listEl.appendChild(row);
+    renderTrackList(likedContainer, likedTracks, {
+      ...listOptions(likedTracks),
+      emptyMessage: "No liked tracks yet.",
     });
   };
 
+  const renderLocal = () => {
+    renderTrackList(localListEl, localTracks, {
+      ...listOptions(localTracks),
+      emptyMessage: "No tracks found in your music folder.",
+    });
+  };
+
+  if (filterBar) {
+    filterBar.onChange(() => {
+      void refreshLocalOnly();
+    });
+  }
+
+  async function refreshLocalOnly() {
+    const query = filterBar ? filterStateToQuery(filterBar.getState()) : undefined;
+    localTracks = await api.library.getTracks(query);
+    renderLocal();
+  }
+
   return {
+    getPlayingTrackId: () => playingTrackId,
+    setPlayingTrackId(id) {
+      playingTrackId = id;
+    },
     async refresh() {
-      tracks = await api.library.getTracks({ sortBy: "title", sortOrder: "asc" });
-      render();
+      await Promise.all([this.refreshLiked(), refreshLocalOnly()]);
+    },
+    async refreshLiked() {
+      likedTracks = await api.library.getFavorites();
+      renderLiked();
+    },
+    async refreshFacets() {
+      const all = await api.library.getTracks({ sortBy: "title", sortOrder: "asc" });
+      filterBar?.setFacets(buildFacets(all));
     },
     setScanStatus(message: string) {
       if (statusEl) statusEl.textContent = message;
@@ -83,6 +96,7 @@ export function initLibraryPage(
 export async function scanAndLoadLibrary(page: LibraryPage): Promise<void> {
   page.setScanStatus("Scanning music library…");
   await api.library.scanLibrary();
+  await page.refreshFacets();
   await page.refresh();
   page.setScanStatus("");
 }
