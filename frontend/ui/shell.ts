@@ -1,5 +1,7 @@
 import { SVG_PLAY, SVG_VOLUME, SVG_MUTE } from "./icons";
 
+const SIDEBAR_COLLAPSED_KEY = "brook-sidebar-collapsed";
+
 /** Hide streaming-only chrome; init player chrome like Monochrome. */
 export function initMonochromeShell(): void {
   const hideIds = [
@@ -36,6 +38,30 @@ export function initMonochromeShell(): void {
   if (volumeBtn) volumeBtn.innerHTML = SVG_VOLUME(20);
 
   initLibraryTabs();
+  initSidebarToggle();
+}
+
+function initSidebarToggle(): void {
+  const toggle = document.getElementById("sidebar-toggle");
+  if (!toggle) return;
+
+  const setCollapsed = (collapsed: boolean) => {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    toggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  };
+
+  if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true") {
+    setCollapsed(true);
+  }
+
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const collapsed = !document.body.classList.contains("sidebar-collapsed");
+    setCollapsed(collapsed);
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  });
 }
 
 function initLibraryTabs(): void {

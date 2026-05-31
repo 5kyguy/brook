@@ -7938,6 +7938,10 @@ body:has(#fullscreen-cover-overlay:not([style*='display: none'])) .now-playing-b
     body.sidebar-collapsed #sidebar-toggle {
         margin-left: 0 !important;
     }
+
+    body.sidebar-collapsed #sidebar-toggle svg {
+        transform: rotate(180deg);
+    }
 }
 
 #page-track .detail-header {
