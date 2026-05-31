@@ -1,21 +1,18 @@
-import { reapplyTrackVisualEffects, syncVisualEffectToggles } from "./visual-effects";
+import { reapplyTrackVisualEffects } from "./visual-effects";
 
 const STORAGE_PREFIX = "brook-";
 
 export interface VisualSettings {
   dynamicColor: boolean;
-  cdAlbumCover: boolean;
 }
 
 const DEFAULTS: VisualSettings = {
   dynamicColor: false,
-  cdAlbumCover: false,
 };
 
 function key(name: keyof VisualSettings): string {
   const map: Record<keyof VisualSettings, string> = {
     dynamicColor: "dynamic-color",
-    cdAlbumCover: "cd-album-cover",
   };
   return STORAGE_PREFIX + map[name];
 }
@@ -28,7 +25,6 @@ export function loadVisualSettings(): VisualSettings {
   };
   return {
     dynamicColor: read("dynamicColor"),
-    cdAlbumCover: read("cdAlbumCover"),
   };
 }
 
@@ -39,8 +35,6 @@ export function saveVisualSetting(name: keyof VisualSettings, value: boolean): v
 
 export function applyVisualSettings(settings: VisualSettings): void {
   document.body.dataset.dynamicColor = String(settings.dynamicColor);
-  document.body.dataset.cdAlbumCover = String(settings.cdAlbumCover);
-  syncVisualEffectToggles();
 }
 
 export function initVisualSettings(): void {
@@ -56,10 +50,8 @@ export function initVisualSettings(): void {
       if (name === "dynamicColor") {
         reapplyTrackVisualEffects();
       }
-      syncVisualEffectToggles();
     });
   };
 
   bindToggle("dynamic-color-toggle", "dynamicColor");
-  bindToggle("cd-album-cover-toggle", "cdAlbumCover");
 }

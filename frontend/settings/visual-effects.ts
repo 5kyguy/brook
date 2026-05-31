@@ -27,22 +27,6 @@ export async function applyTrackVisualEffects(track: Track | null): Promise<void
   await applyDynamicAccent(coverUrl);
 }
 
-export function applyCdAlbumCoverEffect(enabled: boolean): void {
-  const overlay = document.getElementById("fullscreen-cover-overlay");
-  const image = document.getElementById("fullscreen-cover-image");
-  const card = image?.closest(".fullscreen-artwork-card") as HTMLElement | null;
-  if (card) {
-    card.classList.toggle("cd", enabled);
-  }
-  image?.classList.toggle("cd", enabled);
-  overlay?.classList.toggle("cd-mode", enabled);
-}
-
-export function syncVisualEffectToggles(): void {
-  const settings = loadVisualSettings();
-  applyCdAlbumCoverEffect(settings.cdAlbumCover);
-}
-
 async function applyDynamicAccent(coverUrl: string): Promise<void> {
   if (coverUrl.includes("appicon.png")) {
     clearDynamicAccent();

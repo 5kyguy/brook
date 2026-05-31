@@ -6,10 +6,9 @@ import { initQueuePanel } from "./player/queue-panel";
 import { createPlaybackQueue } from "./player/queue";
 import { initKeyboardShortcuts } from "./player/shortcuts";
 import { initVisualizer } from "./player/visualizer";
-import { trackLabel } from "./ui/dom";
 import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
-import { setCurrentTrackForVisuals, syncVisualEffectToggles } from "./settings/visual-effects";
+import { setCurrentTrackForVisuals } from "./settings/visual-effects";
 import { initStatsPage } from "./ui/stats";
 import { loadStoredTheme } from "./settings/theme";
 import { initEntityPages, initTrackContextMenu } from "./ui/entity-page";
@@ -29,10 +28,12 @@ async function boot(): Promise<void> {
   loadStoredTheme();
   initMonochromeShell();
   ensureCreatePlaylistCardArt();
-  syncVisualEffectToggles();
 
   const queue = createPlaybackQueue();
-  const lyricsPanel = initLyricsPanel();
+  let visualizer: ReturnType<typeof initVisualizer> | null = null;
+  const lyricsPanel = initLyricsPanel({
+    onFullscreenLyricsChange: (open) => visualizer?.clampVisualizerForLyrics(open),
+  });
   const router = new Router();
 
   let playlistPicker!: ReturnType<typeof initPlaylistPicker>;
@@ -40,7 +41,6 @@ async function boot(): Promise<void> {
   let playerBar!: ReturnType<typeof initPlayerBar>;
   let searchPage!: ReturnType<typeof initSearchPage>;
   let entityPages!: ReturnType<typeof initEntityPages>;
-  let visualizer!: ReturnType<typeof initVisualizer>;
   let queuePanel!: ReturnType<typeof initQueuePanel>;
 
   const refreshQueuePanel = () => {
@@ -56,7 +56,7 @@ async function boot(): Promise<void> {
 
   async function setNowPlayingTrack(track: Track | null): Promise<void> {
     playerBar.setTrack(track);
-    visualizer.setTrack(track);
+    visualizer?.setTrack(track);
     await lyricsPanel.setTrack(track);
     if (track) {
       setCurrentTrackForVisuals(track);
@@ -99,6 +99,7 @@ async function boot(): Promise<void> {
     await api.library.toggleFavorite(track.id);
     const updated = await api.library.getTrack(track.id);
     playerBar.setTrack(updated);
+    visualizer?.setTrack(updated);
     await libraryPage.refresh();
     await playlists.refresh();
   }
@@ -124,36 +125,6 @@ async function boot(): Promise<void> {
     await playQueuedTrack(prev);
     refreshQueuePanel();
   }
-
-  visualizer = initVisualizer({
-    onPrev: () => void goPrev(),
-    onNext: () => void goNext(),
-    onPlayPause: () => {
-      void (async () => {
-        const track = queue.getCurrent();
-        if (!track) return;
-        const state = await api.playback.getPlaybackState();
-        if (state.status === "playing") await api.playback.pause();
-        else if (state.status === "paused") await api.playback.resume();
-        else await api.playback.playTrack(track.id);
-      })();
-    },
-    onToggleShuffle: () => {
-      const shuffled = queue.toggleShuffle();
-      syncTransportControls();
-      refreshQueuePanel();
-      return shuffled;
-    },
-    onCycleRepeat: () => {
-      const repeat = queue.cycleRepeat();
-      syncTransportControls();
-      return repeat;
-    },
-    getNextLabel: () => {
-      const next = queue.getNext();
-      return next ? trackLabel(next) : null;
-    },
-  });
 
   queuePanel = initQueuePanel({
     queue,
@@ -214,6 +185,48 @@ async function boot(): Promise<void> {
 
   playlistPicker = initPlaylistPicker(() => {
     void playlists.refresh();
+  });
+
+  visualizer = initVisualizer({
+    onPrev: () => void goPrev(),
+    onNext: () => {
+      void goNext();
+    },
+    onPlayPause: () => {
+      void (async () => {
+        const track = queue.getCurrent();
+        if (!track) return;
+        const state = await api.playback.getPlaybackState();
+        if (state.status === "playing") await api.playback.pause();
+        else if (state.status === "paused") await api.playback.resume();
+        else await api.playback.playTrack(track.id);
+      })();
+    },
+    onToggleShuffle: () => {
+      const shuffled = queue.toggleShuffle();
+      syncTransportControls();
+      refreshQueuePanel();
+      return shuffled;
+    },
+    onCycleRepeat: () => {
+      const repeat = queue.cycleRepeat();
+      syncTransportControls();
+      return repeat;
+    },
+    onToggleFavorite: () => {
+      void toggleNowPlayingFavorite();
+    },
+    onAddToPlaylist: () => {
+      const track = queue.getCurrent();
+      if (track) playlistPicker.open(track);
+    },
+    onOpenQueue: () => queuePanel.open(),
+    getNextTrack: () => queue.getNext() ?? null,
+    onFullscreenOpen: () => lyricsPanel.setFullscreenHostActive(true),
+    onFullscreenClose: () => {
+      lyricsPanel.setFullscreenHostActive(false);
+      lyricsPanel.closeFullscreen();
+    },
   });
 
   playerBar = initPlayerBar({

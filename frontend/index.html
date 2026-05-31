@@ -857,26 +857,6 @@
                             </div>
 
                             <div class="settings-group">
-                                <div class="setting-item" id="cd-album-cover-setting">
-                                    <div class="info">
-                                        <span class="label" id="cd-album-cover-label">CD Album Cover</span>
-                                        <span class="description" id="cd-album-cover-description"
-                                            >Spin album cover and add CD hole in fullscreen</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            id="cd-album-cover-toggle"
-                                            aria-labelledby="cd-album-cover-label"
-                                            aria-describedby="cd-album-cover-description"
-                                        />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Keyboard Shortcuts</span>
@@ -1026,55 +1006,91 @@
             </div>
         </div>
 
-        <div id="fullscreen-cover-overlay" style="display: none">
+        <div id="fullscreen-cover-overlay" style="display: none" data-viz="0">
             <div id="visualizer-container">
                 <canvas id="visualizer-canvas" aria-hidden="true"></canvas>
             </div>
             <div class="fullscreen-shell">
-                <div class="fullscreen-main-view">
-                    <div class="fullscreen-media-column">
-                        <div class="fullscreen-artwork-card">
-                            <img id="fullscreen-cover-image" src="./assets/appicon.png" alt="" />
-                        </div>
-                        <div class="fullscreen-track-info">
-                            <div class="fullscreen-track-text">
-                                <div id="fullscreen-track-title"></div>
-                                <div id="fullscreen-track-artist"></div>
+                <div class="fullscreen-stage">
+                    <div class="fullscreen-primary">
+                        <div class="fullscreen-artwork-stack">
+                            <div class="fullscreen-artwork-card">
+                                <img id="fullscreen-cover-image" src="./assets/appicon.png" alt="" />
+                                <div class="fullscreen-cover-meta">
+                                    <div id="fullscreen-track-title"></div>
+                                    <div id="fullscreen-track-artist"></div>
+                                </div>
+                            </div>
+                            <div class="fullscreen-player-controls">
+                                <div class="fullscreen-progress-container">
+                                    <span id="fs-current-time">0:00</span>
+                                    <div id="fs-progress-bar" class="progress-bar">
+                                        <div id="fs-progress-fill" class="progress-fill"></div>
+                                    </div>
+                                    <span id="fs-total-time">0:00</span>
+                                </div>
+                                <div class="fullscreen-buttons">
+                                    <button type="button" id="fs-shuffle-btn" title="Shuffle">
+                                        <use svg="!lucide/shuffle.svg" size="24" />
+                                    </button>
+                                    <button type="button" id="fs-prev-btn" title="Previous">
+                                        <use svg="!lucide/arrow-left-to-line.svg" size="24" />
+                                    </button>
+                                    <button type="button" id="fs-play-pause-btn" title="Play">
+                                        <use svg="./images/play.svg" size="28" />
+                                    </button>
+                                    <button type="button" id="fs-next-btn" title="Next">
+                                        <use svg="!lucide/arrow-right-to-line.svg" size="24" />
+                                    </button>
+                                    <button type="button" id="fs-repeat-btn" title="Repeat">
+                                        <use svg="!lucide/repeat.svg" size="24" />
+                                    </button>
+                                </div>
+                                <div class="fullscreen-action-row">
+                                    <button
+                                        type="button"
+                                        id="fs-like-btn"
+                                        class="like-btn"
+                                        title="Save to Favorites"
+                                        aria-label="Save to Favorites"
+                                    ></button>
+                                    <button
+                                        type="button"
+                                        id="fs-add-playlist-btn"
+                                        title="Add to playlist"
+                                        aria-label="Add to playlist"
+                                    >
+                                        <use svg="!lucide/list-plus.svg" size="20" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        id="fs-lyrics-btn"
+                                        title="Lyrics"
+                                        aria-label="Lyrics"
+                                        style="display: none"
+                                    >
+                                        <use svg="!lucide/mic-vocal.svg" size="20" />
+                                    </button>
+                                    <button type="button" id="fs-queue-btn" title="Queue" aria-label="Queue">
+                                        <use svg="!lucide/list.svg" size="20" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="fullscreen-controls">
-                    <div id="fullscreen-next-track" style="display: none">
-                        <span class="label">Up next</span>
-                        <span class="value" id="fullscreen-next-track-value"></span>
-                    </div>
-                    <div class="fullscreen-progress-container">
-                        <span id="fs-current-time">0:00</span>
-                        <div id="fs-progress-bar" class="progress-bar">
-                            <div id="fs-progress-fill" class="progress-fill"></div>
-                        </div>
-                        <span id="fs-total-time">0:00</span>
-                    </div>
-                    <div class="fullscreen-buttons">
-                        <button type="button" id="fs-shuffle-btn" title="Shuffle">
-                            <use svg="!lucide/shuffle.svg" size="24" />
-                        </button>
-                        <button type="button" id="fs-prev-btn" title="Previous">
-                            <use svg="!lucide/arrow-left-to-line.svg" size="24" />
-                        </button>
-                        <button type="button" id="fs-play-pause-btn" title="Play">
-                            <use svg="./images/play.svg" size="28" />
-                        </button>
-                        <button type="button" id="fs-next-btn" title="Next">
-                            <use svg="!lucide/arrow-right-to-line.svg" size="24" />
-                        </button>
-                        <button type="button" id="fs-repeat-btn" title="Repeat">
-                            <use svg="!lucide/repeat.svg" size="24" />
-                        </button>
-                    </div>
+                    <aside class="fullscreen-lyrics-pane" aria-label="Lyrics">
+                        <div id="fullscreen-lyrics-content" class="fullscreen-lyrics-content"></div>
+                    </aside>
                 </div>
             </div>
+            <button type="button" id="fullscreen-up-next" class="fs-up-next" hidden>
+                <img class="fs-up-next-cover" alt="" />
+                <div class="fs-up-next-details">
+                    <span class="fs-up-next-kicker">Up next</span>
+                    <span class="fs-up-next-title"></span>
+                    <span class="fs-up-next-artist"></span>
+                </div>
+            </button>
             <div class="fullscreen-top-actions">
                 <button type="button" id="close-fullscreen-cover-btn" title="Close" aria-label="Close">
                     <use svg="!lucide/x.svg" size="20" />
@@ -1087,18 +1103,6 @@
                     aria-label="Visualizer"
                 >
                     <use svg="!lucide/audio-lines.svg" size="20" />
-                </button>
-                <button
-                    type="button"
-                    id="fs-album-cover-btn"
-                    class="fs-album-cover-btn"
-                    title="Album cover"
-                    aria-label="Album cover"
-                >
-                    <use svg="!lucide/disc.svg" size="20" />
-                </button>
-                <button type="button" id="toggle-ui-btn" title="Show player UI" aria-label="Show player UI">
-                    <use svg="!lucide/panel-top-open.svg" size="20" />
                 </button>
             </div>
         </div>

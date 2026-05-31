@@ -1,15 +1,21 @@
-import { loadVisualSettings } from "../settings/visual";
-import { applyCdAlbumCoverEffect } from "../settings/visual-effects";
 import * as api from "../api";
 import type { PlaybackState } from "../types";
 import type { Track } from "../types";
-import { formatDuration, trackLabel, trackSubtitle } from "../ui/dom";
+import { applyTrackCovers, COVER_PLACEHOLDER } from "../ui/cover-art";
+import { formatDuration, trackArtist, trackLabel } from "../ui/dom";
+import { SVG_HEART, SVG_HEART_FILLED } from "../ui/icons";
 import type { RepeatMode } from "./queue";
 import { bindDragSlider } from "./slider";
 
 const SMOOTHING = 0.38;
-const IDLE_MS = 3200;
-const CHROME_REVEAL_Y = 96;
+type VisualizerLevel = 0 | 1 | 2 | 3;
+
+const VISUALIZER_TITLES: Record<VisualizerLevel, string> = {
+  0: "Visualizer off",
+  1: "Visualizer — heavy blur",
+  2: "Visualizer — light blur",
+  3: "Visualizer — sharp",
+};
 
 export interface FullscreenHandlers {
   onPrev?: () => void | Promise<void>;
@@ -17,7 +23,12 @@ export interface FullscreenHandlers {
   onPlayPause?: () => void | Promise<void>;
   onToggleShuffle?: () => boolean | Promise<boolean>;
   onCycleRepeat?: () => RepeatMode | Promise<RepeatMode>;
-  getNextLabel?: () => string | null;
+  onToggleFavorite?: () => void | Promise<void>;
+  onAddToPlaylist?: () => void;
+  onOpenQueue?: () => void;
+  getNextTrack?: () => Track | null;
+  onFullscreenOpen?: () => void;
+  onFullscreenClose?: () => void;
 }
 
 export interface VisualizerController {
@@ -25,6 +36,7 @@ export interface VisualizerController {
   setProgress(positionSecs: number, durationSecs: number): void;
   syncPlaybackState(status: PlaybackState["status"]): void;
   syncQueueControls(shuffle: boolean, repeat: RepeatMode): void;
+  clampVisualizerForLyrics(open: boolean): void;
   close(): void;
 }
 
@@ -39,9 +51,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   const titleEl = document.getElementById("fullscreen-track-title");
   const artistEl = document.getElementById("fullscreen-track-artist");
   const visualizerBtn = document.getElementById("fs-visualizer-btn");
-  const albumCoverBtn = document.getElementById("fs-album-cover-btn");
   const closeBtn = document.getElementById("close-fullscreen-cover-btn");
-  const toggleUiBtn = document.getElementById("toggle-ui-btn");
   const barCover = document.querySelector<HTMLImageElement>(".now-playing-bar .cover");
 
   const fsPlayBtn = document.getElementById("fs-play-pause-btn");
@@ -49,20 +59,24 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   const fsPrevBtn = document.getElementById("fs-prev-btn");
   const fsNextBtn = document.getElementById("fs-next-btn");
   const fsRepeatBtn = document.getElementById("fs-repeat-btn");
+  const fsLikeBtn = document.getElementById("fs-like-btn");
+  const fsAddPlaylistBtn = document.getElementById("fs-add-playlist-btn");
+  const fsQueueBtn = document.getElementById("fs-queue-btn");
   const fsCurrentTime = document.getElementById("fs-current-time");
   const fsTotalTime = document.getElementById("fs-total-time");
   const fsProgressBar = document.getElementById("fs-progress-bar");
   const fsProgressFill = document.getElementById("fs-progress-fill");
-  const upNextBlock = document.getElementById("fullscreen-next-track");
-  const upNextValue = document.getElementById("fullscreen-next-track-value");
+  const upNextBtn = document.getElementById("fullscreen-up-next");
+  const upNextCover = upNextBtn?.querySelector<HTMLImageElement>(".fs-up-next-cover") ?? null;
+  const upNextTitle = upNextBtn?.querySelector<HTMLElement>(".fs-up-next-title") ?? null;
+  const upNextArtist = upNextBtn?.querySelector<HTMLElement>(".fs-up-next-artist") ?? null;
 
   let currentTrack: Track | null = null;
-  let visualizerMode = false;
-  let albumCoverMode = false;
+  let visualizerLevel: VisualizerLevel = 0;
+  let lyricsLimitVisualizer = false;
   let targetBins: number[] = [];
   let displayBins: number[] = [];
   let animationFrame = 0;
-  let idleTimer = 0;
   let playbackStatus: PlaybackState["status"] = "stopped";
   let durationSecs = 0;
   let positionSecs = 0;
@@ -70,17 +84,33 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
 
   const isOpen = () => overlay.style.display !== "none";
 
-  const syncUpNext = () => {
-    const label = handlers.getNextLabel?.() ?? null;
-    if (upNextBlock && upNextValue) {
-      if (label) {
-        upNextBlock.style.display = "";
-        upNextValue.textContent = label;
-      } else {
-        upNextBlock.style.display = "none";
-        upNextValue.textContent = "";
-      }
+  const syncLikeButton = (track: Track | null) => {
+    if (!fsLikeBtn) return;
+    if (!track) {
+      fsLikeBtn.classList.remove("active");
+      fsLikeBtn.innerHTML = SVG_HEART(20);
+      return;
     }
+    fsLikeBtn.classList.toggle("active", track.isFavorite);
+    fsLikeBtn.innerHTML = track.isFavorite ? SVG_HEART_FILLED(20) : SVG_HEART(20);
+    fsLikeBtn.title = track.isFavorite ? "Remove from Favorites" : "Save to Favorites";
+  };
+
+  const syncUpNext = (next: Track | null) => {
+    if (!upNextBtn) return;
+    if (!next) {
+      upNextBtn.hidden = true;
+      return;
+    }
+    upNextBtn.hidden = false;
+    if (upNextTitle) upNextTitle.textContent = trackLabel(next);
+    if (upNextArtist) upNextArtist.textContent = trackArtist(next);
+    if (upNextCover) {
+      upNextCover.src = COVER_PLACEHOLDER;
+      upNextCover.dataset.trackId = next.id;
+      upNextCover.alt = trackLabel(next);
+    }
+    applyTrackCovers(upNextBtn);
   };
 
   const updateFsPlayButton = () => {
@@ -176,7 +206,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   };
 
   const stepAnimation = () => {
-    if (!isOpen() || !visualizerMode) {
+    if (!isOpen() || visualizerLevel === 0) {
       animationFrame = 0;
       return;
     }
@@ -210,40 +240,31 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
 
   const syncTrackUi = (track: Track | null) => {
     if (titleEl) titleEl.textContent = track ? trackLabel(track) : "";
-    if (artistEl) artistEl.textContent = track ? trackSubtitle(track) : "";
+    if (artistEl) artistEl.textContent = track ? trackArtist(track) : "";
     if (coverImage) {
       coverImage.src = barCover?.src ?? "./assets/appicon.png";
     }
-    syncUpNext();
-  };
-
-  const setUiHidden = (hidden: boolean) => {
-    overlay.classList.toggle("ui-hidden", hidden);
-    toggleUiBtn?.classList.toggle("active", hidden);
-    if (!hidden) {
-      toggleUiBtn?.classList.remove("visible");
-      resetIdleTimer();
-    }
+    syncLikeButton(track);
+    syncUpNext(handlers.getNextTrack?.() ?? null);
   };
 
   const syncPresentation = () => {
-    overlay.classList.toggle("visualizer-active", visualizerMode);
-    overlay.classList.toggle("album-cover-active", albumCoverMode);
-    visualizerBtn?.classList.toggle("active", visualizerMode);
-    albumCoverBtn?.classList.toggle("active", albumCoverMode);
-    applyCdAlbumCoverEffect(albumCoverMode);
+    overlay.dataset.viz = String(visualizerLevel);
+    const active = visualizerLevel > 0;
+    overlay.classList.toggle("visualizer-active", active);
+    visualizerBtn?.classList.toggle("active", active);
 
-    if (toggleUiBtn) {
-      toggleUiBtn.style.display = visualizerMode && !albumCoverMode ? "" : "none";
+    const title = VISUALIZER_TITLES[visualizerLevel];
+    if (visualizerBtn) {
+      visualizerBtn.title = title;
+      visualizerBtn.setAttribute("aria-label", title);
     }
 
-    void api.playback.setVisualizerActive(visualizerMode);
+    void api.playback.setVisualizerActive(active);
 
-    if (visualizerMode) {
-      setUiHidden(!albumCoverMode);
+    if (active) {
       startAnimation();
     } else {
-      setUiHidden(false);
       targetBins = [];
       displayBins = [];
       stopAnimation();
@@ -252,56 +273,34 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     resizeCanvas();
   };
 
-  const setVisualizerMode = (active: boolean) => {
-    visualizerMode = active;
+  const maxVisualizerLevel = () => (lyricsLimitVisualizer ? 1 : 3);
+
+  const cycleVisualizer = () => {
+    const max = maxVisualizerLevel();
+    visualizerLevel = (visualizerLevel >= max ? 0 : visualizerLevel + 1) as VisualizerLevel;
     syncPresentation();
-  };
-
-  const setAlbumCoverMode = (active: boolean) => {
-    albumCoverMode = active;
-    syncPresentation();
-  };
-
-  const resetIdleTimer = () => {
-    overlay.classList.remove("controls-idle");
-    window.clearTimeout(idleTimer);
-    if (!isOpen() || overlay.classList.contains("ui-hidden")) return;
-    idleTimer = window.setTimeout(() => {
-      if (isOpen() && !overlay.classList.contains("ui-hidden")) {
-        overlay.classList.add("controls-idle");
-      }
-    }, IDLE_MS);
-  };
-
-  const revealChrome = (clientY: number) => {
-    if (!overlay.classList.contains("ui-hidden")) return;
-    const nearTop = clientY <= CHROME_REVEAL_Y;
-    toggleUiBtn?.classList.toggle("visible", nearTop);
   };
 
   const open = () => {
     if (!currentTrack) return;
     syncTrackUi(currentTrack);
-    albumCoverMode = loadVisualSettings().cdAlbumCover;
     overlay.style.display = "flex";
-    overlay.classList.remove("controls-idle");
+    document.body.classList.add("fullscreen-active");
+    handlers.onFullscreenOpen?.();
+    visualizerLevel = 0;
+    syncPresentation();
     resizeCanvas();
-    resetIdleTimer();
     updateFsPlayButton();
     setFsProgressUi(positionSecs, durationSecs);
-
-    visualizerMode = false;
-    syncPresentation();
   };
 
   const close = () => {
     overlay.style.display = "none";
-    visualizerMode = false;
-    albumCoverMode = false;
+    document.body.classList.remove("fullscreen-active");
+    overlay.classList.remove("lyrics-open");
+    handlers.onFullscreenClose?.();
+    visualizerLevel = 0;
     syncPresentation();
-    applyCdAlbumCoverEffect(loadVisualSettings().cdAlbumCover);
-    toggleUiBtn?.classList.remove("visible");
-    window.clearTimeout(idleTimer);
   };
 
   barCover?.addEventListener("click", () => open());
@@ -311,31 +310,14 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   });
 
   overlay.addEventListener("click", (event) => {
-    if (event.target === overlay && !overlay.classList.contains("ui-hidden")) {
+    if (event.target === overlay) {
       close();
     }
   });
 
   visualizerBtn?.addEventListener("click", (event) => {
     event.stopPropagation();
-    setVisualizerMode(!visualizerMode);
-    resetIdleTimer();
-  });
-
-  albumCoverBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    setAlbumCoverMode(!albumCoverMode);
-    resetIdleTimer();
-  });
-
-  toggleUiBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (!visualizerMode) return;
-    const hidden = overlay.classList.contains("ui-hidden");
-    setUiHidden(!hidden);
-    if (!hidden) {
-      resetIdleTimer();
-    }
+    cycleVisualizer();
   });
 
   fsPlayBtn?.addEventListener("click", (event) => {
@@ -367,6 +349,26 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     });
   });
 
+  fsLikeBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void handlers.onToggleFavorite?.();
+  });
+
+  fsAddPlaylistBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    handlers.onAddToPlaylist?.();
+  });
+
+  fsQueueBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    handlers.onOpenQueue?.();
+  });
+
+  upNextBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void handlers.onNext?.();
+  });
+
   if (fsProgressBar) {
     bindDragSlider(fsProgressBar, {
       getMax: () => durationSecs,
@@ -386,15 +388,6 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     });
   }
 
-  overlay.addEventListener("mousemove", (event) => {
-    revealChrome(event.clientY);
-    resetIdleTimer();
-  });
-
-  overlay.addEventListener("mouseleave", () => {
-    toggleUiBtn?.classList.remove("visible");
-  });
-
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && isOpen()) {
       close();
@@ -407,7 +400,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   });
 
   void api.events.onPlaybackSpectrum((payload) => {
-    if (!isOpen() || !visualizerMode) return;
+    if (!isOpen() || visualizerLevel === 0) return;
     targetBins = payload.bins;
     startAnimation();
   });
@@ -427,6 +420,13 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
       updateFsPlayButton();
     },
     syncQueueControls: syncFsQueueControls,
+    clampVisualizerForLyrics(open) {
+      lyricsLimitVisualizer = open;
+      if (open && visualizerLevel > 1) {
+        visualizerLevel = 1;
+        syncPresentation();
+      }
+    },
     close,
   };
 }
