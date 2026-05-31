@@ -98,6 +98,13 @@ impl Database {
         }
     }
 
+    pub fn delete_setting(&self, key: &str) -> Result<(), String> {
+        self.conn
+            .execute("DELETE FROM app_settings WHERE key = ?1", params![key])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn list_track_ids(&self) -> Result<Vec<String>, String> {
         let mut stmt = self
             .conn
@@ -513,6 +520,33 @@ impl Database {
                 params![now_ms(), playlist_id],
             )
             .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Drop scanned library data when the music root changes (stats/history too).
+    pub fn reset_library_tracks(&mut self) -> Result<(), String> {
+        self.conn
+            .execute("DELETE FROM play_history", [])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM listening_stats", [])
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute("DELETE FROM tracks", [])
+            .map_err(|e| e.to_string())?;
+        for id in [
+            charts::ID_WEEKLY_TOP,
+            charts::ID_MONTHLY_TOP,
+            charts::ID_QUARTERLY_TOP,
+            charts::ID_YEARLY_TOP,
+        ] {
+            self.conn
+                .execute(
+                    "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 }

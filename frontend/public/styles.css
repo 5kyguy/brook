@@ -3011,6 +3011,13 @@ body.multi-select-mode .track-item:hover {
     padding: 0;
 }
 
+.settings-music-folder-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
 .sidebar-settings-section {
     display: flex;
     flex-direction: column;

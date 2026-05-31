@@ -26,6 +26,7 @@ thiserror = "1"
 symphonia = { version = "0.5", features = ["mp3", "flac", "vorbis", "pcm", "aac", "isomp4", "ogg", "wav"] }
 rodio = "0.19"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rfd = "0.15"
 
 [profile.dev]
 incremental = true

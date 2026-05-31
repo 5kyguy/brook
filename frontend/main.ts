@@ -76,12 +76,22 @@ async function boot(): Promise<void> {
     }
   });
 
-  const settingsPage = initSettingsPage(async () => {
-    await api.library.scanLibrary();
-    await libraryPage.refreshFacets();
-    await libraryPage.refresh();
-    await playlists.refresh();
-  });
+  const settingsPage = initSettingsPage(
+    async () => {
+      await api.library.scanLibrary();
+      await libraryPage.refreshFacets();
+      await libraryPage.refresh();
+      await playlists.refresh();
+    },
+    async () => {
+      await api.library.scanLibrary();
+      await libraryPage.refreshFacets();
+      await libraryPage.refresh();
+      await playlists.refresh();
+      await statsPage.refresh();
+      await recentPage.refresh();
+    },
+  );
 
   bindSidebarNavigation(router);
   router.start((route) => {

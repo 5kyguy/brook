@@ -278,13 +278,14 @@ pub fn run() {
             let db_path = app_data.join("brook.db");
             let mut db = db::Database::open(&db_path)?;
             db.refresh_chart_playlists_if_due()?;
-            let music_root = paths::resolve_music_root(&db)?;
-
-            app.manage(AppState::new(db, music_root, app.handle().clone()));
+            app.manage(AppState::new(db, app.handle().clone()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::library::get_music_root,
+            commands::library::pick_music_folder,
+            commands::library::set_music_root,
+            commands::library::reset_music_root,
             commands::library::scan_library,
             commands::library::get_tracks,
             commands::library::get_track,

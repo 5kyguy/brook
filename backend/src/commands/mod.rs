@@ -6,7 +6,10 @@ pub mod playback;
 pub mod stats;
 
 pub use favorites::{get_favorites, toggle_favorite};
-pub use library::{get_music_root, get_track, get_tracks, scan_library};
+pub use library::{
+    get_music_root, get_track, get_tracks, pick_music_folder, reset_music_root, scan_library,
+    set_music_root,
+};
 pub use lyrics::read_lyrics;
 pub use playback::{
     get_playback_state, pause, play_track, resume, seek, set_volume, stop,

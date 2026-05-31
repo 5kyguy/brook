@@ -6,7 +6,7 @@ Brook is a fully offline desktop music player. It reads audio from your local li
 
 ## What Brook is
 
-- Local music player for `$HOME/Music` (default library path)
+- Local music player for `$HOME/Music` by default (configurable in settings)
 - Likes, playlists, and library browse with sort/filter by album, artist, and year
 - Sidecar `.lrc` lyrics, with fallback to embedded ID3/metadata lyrics
 - Listening statistics and a simple yearly wrap view
@@ -79,5 +79,5 @@ Playback state reaches the UI through Tauri events (position, state, track chang
 - [x] Settings page (theme, visual toggles, library path, rescan)
 - [x] Playlists, favorites, filters (UI wiring)
 - [x] Stats and yearly wrap
-- [ ] Configurable music folder (picker in settings)
+- [x] Configurable music folder (picker in settings)
 - [ ] Visualizer spectrum data from Rust

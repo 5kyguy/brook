@@ -8,6 +8,21 @@ export async function getMusicRoot(): Promise<string> {
   return invoke<string>("get_music_root");
 }
 
+export async function pickMusicFolder(): Promise<string | null> {
+  requireTauri();
+  return invoke<string | null>("pick_music_folder");
+}
+
+export async function setMusicRoot(path: string): Promise<string> {
+  requireTauri();
+  return invoke<string>("set_music_root", { path });
+}
+
+export async function resetMusicRoot(): Promise<string> {
+  requireTauri();
+  return invoke<string>("reset_music_root");
+}
+
 export async function scanLibrary(): Promise<ScanResult> {
   requireTauri();
   return invoke<ScanResult>("scan_library");
