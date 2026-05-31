@@ -8,11 +8,14 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::db::TrackRow;
 use crate::audio::decode::DecodedAudio;
 use crate::models::{
-    PlaybackEndedPayload, PlaybackPositionPayload, PlaybackState, PlaybackStatePayload,
-    PlaybackStatus,
+    PlaybackEndedPayload, PlaybackPositionPayload, PlaybackSpectrumPayload, PlaybackState,
+    PlaybackStatePayload, PlaybackStatus,
 };
+use crate::audio::spectrum::{self, DEFAULT_BIN_COUNT};
 
 const TICK_MS: u64 = 250;
+const SPECTRUM_MS: u64 = 33;
+const POSITION_MS: u64 = 250;
 
 use crate::state::AppState;
 
@@ -35,6 +38,7 @@ enum AudioCommand {
     Stop,
     Seek(f64),
     SetVolume(f32),
+    SetVisualizerActive(bool),
     Shutdown,
 }
 
@@ -47,6 +51,9 @@ struct PlayerContext {
     seek_base_secs: f64,
     volume: f32,
     playing: bool,
+    visualizer_active: bool,
+    last_spectrum_emit: std::time::Instant,
+    last_position_emit: std::time::Instant,
 }
 
 impl PlayerContext {
@@ -62,6 +69,9 @@ impl PlayerContext {
             seek_base_secs: 0.0,
             volume: 1.0,
             playing: false,
+            visualizer_active: false,
+            last_spectrum_emit: std::time::Instant::now(),
+            last_position_emit: std::time::Instant::now(),
         })
     }
 
@@ -174,6 +184,12 @@ impl Engine {
             .send(AudioCommand::SetVolume(volume))
             .map_err(|e| format!("Audio thread unavailable: {e}"))
     }
+
+    pub fn set_visualizer_active(&self, active: bool) -> Result<(), String> {
+        self.cmd_tx
+            .send(AudioCommand::SetVisualizerActive(active))
+            .map_err(|e| format!("Audio thread unavailable: {e}"))
+    }
 }
 
 impl Drop for Engine {
@@ -199,7 +215,12 @@ fn audio_thread_main(
     };
 
     loop {
-        match cmd_rx.recv_timeout(Duration::from_millis(TICK_MS)) {
+        let poll_ms = if ctx.visualizer_active && ctx.playing {
+            SPECTRUM_MS
+        } else {
+            TICK_MS
+        };
+        match cmd_rx.recv_timeout(Duration::from_millis(poll_ms)) {
             Ok(AudioCommand::Play {
                 track_id,
                 decoded,
@@ -238,6 +259,9 @@ fn audio_thread_main(
                     );
                     emit_state(&app, PlaybackStatus::Paused);
                     emit_position(&app, pos, ctx.duration_secs());
+                    if ctx.visualizer_active {
+                        emit_spectrum_silence(&app);
+                    }
                 }
             }
             Ok(AudioCommand::Resume) => {
@@ -271,6 +295,9 @@ fn audio_thread_main(
                     ctx.volume,
                 );
                 emit_state(&app, PlaybackStatus::Stopped);
+                if ctx.visualizer_active {
+                    emit_spectrum_silence(&app);
+                }
                 if let Some(id) = track_id {
                     let _ = app.emit("playback:ended", PlaybackEndedPayload { track_id: id });
                 }
@@ -321,6 +348,13 @@ fn audio_thread_main(
                     state.volume = ctx.volume;
                 }
             }
+            Ok(AudioCommand::SetVisualizerActive(active)) => {
+                ctx.visualizer_active = active;
+                ctx.last_spectrum_emit = std::time::Instant::now();
+                if !active {
+                    emit_spectrum_silence(&app);
+                }
+            }
             Ok(AudioCommand::Shutdown) => break,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 if !ctx.playing {
@@ -344,6 +378,9 @@ fn audio_thread_main(
                     );
                     emit_state(&app, PlaybackStatus::Stopped);
                     emit_position(&app, duration, duration);
+                    if ctx.visualizer_active {
+                        emit_spectrum_silence(&app);
+                    }
                     if let Some(id) = track_id {
                         record_listen(&app, &id, duration, duration);
                         let _ = app.emit("playback:ended", PlaybackEndedPayload { track_id: id });
@@ -363,7 +400,11 @@ fn audio_thread_main(
                     duration,
                     ctx.volume,
                 );
-                emit_position(&app, pos, duration);
+                if ctx.last_position_emit.elapsed() >= Duration::from_millis(POSITION_MS) {
+                    emit_position(&app, pos, duration);
+                    ctx.last_position_emit = std::time::Instant::now();
+                }
+                maybe_emit_spectrum_mut(&app, &mut ctx);
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
@@ -402,4 +443,30 @@ fn emit_position(app: &AppHandle, position_secs: f64, duration_secs: f64) {
             duration_secs,
         },
     );
+}
+
+fn emit_spectrum(app: &AppHandle, bins: Vec<f32>) {
+    let _ = app.emit(
+        "playback:spectrum",
+        PlaybackSpectrumPayload { bins },
+    );
+}
+
+fn emit_spectrum_silence(app: &AppHandle) {
+    emit_spectrum(app, vec![0.0; DEFAULT_BIN_COUNT]);
+}
+
+fn maybe_emit_spectrum_mut(app: &AppHandle, ctx: &mut PlayerContext) {
+    if !ctx.visualizer_active || !ctx.playing {
+        return;
+    }
+    if ctx.last_spectrum_emit.elapsed() < Duration::from_millis(SPECTRUM_MS) {
+        return;
+    }
+    let Some(decoded) = ctx.decoded.clone() else {
+        return;
+    };
+    let bins = spectrum::compute_spectrum(&decoded, ctx.position_secs(), DEFAULT_BIN_COUNT);
+    emit_spectrum(app, bins);
+    ctx.last_spectrum_emit = std::time::Instant::now();
 }

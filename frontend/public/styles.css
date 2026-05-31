@@ -3116,6 +3116,7 @@ body.multi-select-mode .track-item:hover {
     border-radius: var(--radius);
     padding: 0.5rem;
     appearance: auto; /* Force native dropdown for Tesla/Mobile */
+    min-width: 9.5rem;
 }
 
 .setting-item input[type='number'] {
@@ -4154,9 +4155,9 @@ input:checked + .slider::before {
     height: 100%;
     z-index: 0;
     pointer-events: none;
-    filter: blur(8px) saturate(0.9) brightness(0.8);
-    transform: scale(1.03);
-    opacity: 0.8;
+    filter: blur(6px) saturate(0.92) brightness(0.85);
+    transform: scale(1.02);
+    opacity: 0.82;
     transition:
         opacity 0.65s ease,
         filter 0.65s ease,
@@ -4230,50 +4231,11 @@ input:checked + .slider::before {
     opacity: 0;
 }
 
-/* UI Toggle Button for Visualizer Mode - Rightmost position */
+/* UI toggle — lives in .fullscreen-top-actions (styled there) */
 #toggle-ui-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background-color: var(--background);
-    border: none;
-    color: var(--foreground);
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-full);
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition:
-        opacity 0.3s ease,
-        transform 0.2s ease,
-        right 0.3s ease;
-    z-index: 10;
-    opacity: 0.5;
-    pointer-events: auto;
-}
-
-#toggle-ui-btn:hover {
-    opacity: 0.8;
-    transform: scale(1.05);
-}
-
-#toggle-ui-btn.active {
-    color: var(--primary);
-    opacity: 0.8;
-}
-
-/* When UI is hidden, toggle button is hidden by default */
-#fullscreen-cover-overlay.ui-hidden #toggle-ui-btn {
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* When UI is hidden and mouse is near, show the toggle button */
-#fullscreen-cover-overlay.ui-hidden #toggle-ui-btn.visible {
-    opacity: 0.5;
-    pointer-events: auto;
 }
 
 /* Lyrics Toggle - Middle position */
@@ -4345,7 +4307,6 @@ input:checked + .slider::before {
     background-color: var(--background);
     border: none;
     color: var(--foreground);
-    font-size: 2rem;
     width: 48px;
     height: 48px;
     border-radius: var(--radius-full);
@@ -4375,10 +4336,14 @@ input:checked + .slider::before {
 
 /* When UI is hidden, only toggle button stays visible at right edge (when .visible class is added) */
 
-#fullscreen-cover-overlay.ui-hidden .fullscreen-lyrics-toggle,
-#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions {
+#fullscreen-cover-overlay.ui-hidden .fullscreen-lyrics-toggle {
     opacity: 0;
     pointer-events: none;
+}
+
+#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 #fullscreen-cover-overlay.ui-hidden::before,
@@ -10924,13 +10889,21 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
         opacity 0.2s ease;
 }
 
+#fullscreen-cover-overlay .fullscreen-top-actions button svg,
+#fullscreen-cover-overlay #toggle-ui-btn svg {
+    display: block;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
 #fullscreen-cover-overlay .fullscreen-top-actions #fs-visualizer-btn {
-    order: 3;
+    order: 2;
 }
 
 #fullscreen-cover-overlay .fullscreen-top-actions #toggle-fullscreen-lyrics-btn,
 #fullscreen-cover-overlay .fullscreen-top-actions #fs-visualizer-btn,
-#fullscreen-cover-overlay .fullscreen-top-actions #close-fullscreen-cover-btn {
+#fullscreen-cover-overlay .fullscreen-top-actions #close-fullscreen-cover-btn,
+#fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn {
     position: static;
     top: auto;
     right: auto;
@@ -10953,6 +10926,11 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     order: 1;
 }
 
+#fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn {
+    order: 3;
+    display: none;
+}
+
 #fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions {
     opacity: 1;
     pointer-events: auto;
@@ -10967,17 +10945,40 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     transform: none;
 }
 
-#fullscreen-cover-overlay #toggle-ui-btn {
-    top: 1.25rem;
-    left: calc(1.5rem + env(safe-area-inset-left) + (40px * 3) + (0.4rem * 3));
-    right: auto;
+#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #toggle-ui-btn {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #toggle-ui-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn {
     width: 40px;
     height: 40px;
+    border: none;
+    border-radius: 999px;
+    padding: 0;
     background: rgb(9 12 18 / 0.34);
     color: rgb(255 255 255 / 0.72);
     backdrop-filter: blur(10px);
-    opacity: 1;
-    z-index: 12;
+    cursor: pointer;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        opacity 0.2s ease,
+        transform 0.2s ease;
+}
+
+#fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn:hover {
+    color: rgb(255 255 255 / 0.94);
+    transform: scale(1.05);
+}
+
+#fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn.active {
+    color: var(--primary);
 }
 
 #fullscreen-cover-overlay .fullscreen-controls {

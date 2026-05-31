@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   PlaybackEndedPayload,
   PlaybackPositionPayload,
+  PlaybackSpectrumPayload,
   PlaybackStatePayload,
   ScanCompletePayload,
   ScanProgressPayload,
@@ -60,6 +61,15 @@ export async function onPlaybackEnded(
 ): Promise<UnlistenFn> {
   if (!isTauri()) return () => {};
   return listen<PlaybackEndedPayload>("playback:ended", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onPlaybackSpectrum(
+  handler: (payload: PlaybackSpectrumPayload) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) return () => {};
+  return listen<PlaybackSpectrumPayload>("playback:spectrum", (event) => {
     handler(event.payload);
   });
 }

@@ -51,6 +51,10 @@ export interface PlaybackEndedPayload {
   trackId: string;
 }
 
+export interface PlaybackSpectrumPayload {
+  bins: number[];
+}
+
 export interface ScanProgressPayload {
   current: number;
   total: number;

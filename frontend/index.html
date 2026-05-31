@@ -1035,18 +1035,6 @@
                             </div>
 
                             <div class="settings-group">
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Full-screen Visualizer</span>
-                                        <span class="description">Enable the visualizer in full-screen mode</span>
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="visualizer-enabled-toggle" checked />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="settings-group">
                                 <div class="setting-item" id="cd-album-cover-setting">
                                     <div class="info">
                                         <span class="label" id="cd-album-cover-label">CD Album Cover</span>
@@ -1208,6 +1196,45 @@
                 </div>
             </footer>
         </div>
+
+        <div id="fullscreen-cover-overlay" style="display: none">
+            <div id="visualizer-container">
+                <canvas id="visualizer-canvas" aria-hidden="true"></canvas>
+            </div>
+            <div class="fullscreen-shell">
+                <div class="fullscreen-main-view">
+                    <div class="fullscreen-media-column">
+                        <div class="fullscreen-artwork-card">
+                            <img id="fullscreen-cover-image" src="./assets/appicon.png" alt="" />
+                        </div>
+                        <div class="fullscreen-track-info">
+                            <div class="fullscreen-track-text">
+                                <div id="fullscreen-track-title"></div>
+                                <div id="fullscreen-track-artist"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="fullscreen-top-actions">
+                <button type="button" id="close-fullscreen-cover-btn" title="Close" aria-label="Close">
+                    <use svg="!lucide/x.svg" size="20" />
+                </button>
+                <button
+                    type="button"
+                    id="fs-visualizer-btn"
+                    class="fs-visualizer-btn"
+                    title="Visualizer"
+                    aria-label="Visualizer"
+                >
+                    <use svg="!lucide/audio-lines.svg" size="20" />
+                </button>
+                <button type="button" id="toggle-ui-btn" title="Show player UI" aria-label="Show player UI">
+                    <use svg="!lucide/panel-top-open.svg" size="20" />
+                </button>
+            </div>
+        </div>
+
         <script type="module" src="/main.ts"></script>
     </body>
 </html>

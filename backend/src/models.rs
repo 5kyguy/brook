@@ -202,3 +202,9 @@ pub struct PlaybackPositionPayload {
 pub struct PlaybackEndedPayload {
     pub track_id: String,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackSpectrumPayload {
+    pub bins: Vec<f32>,
+}

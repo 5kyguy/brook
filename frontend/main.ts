@@ -1,6 +1,7 @@
 import * as api from "./api";
 import { initPlayerBar } from "./player/bar";
 import { getLastTrackId, saveLastTrackId } from "./player/last-track";
+import { initVisualizer } from "./player/visualizer";
 import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
 import { initStatsPage } from "./ui/stats";
@@ -22,6 +23,7 @@ async function boot(): Promise<void> {
   ensureCreatePlaylistCardArt();
 
   const playerBar = initPlayerBar();
+  const visualizer = initVisualizer();
   const router = new Router();
 
   let playlistPicker!: ReturnType<typeof initPlaylistPicker>;
@@ -121,6 +123,7 @@ async function boot(): Promise<void> {
     saveLastTrackId(track.id);
     libraryPage.setPlayingTrackId(track.id);
     playerBar.setTrack(track);
+    visualizer.setTrack(track);
     void libraryPage.refresh();
   });
 
@@ -136,6 +139,7 @@ async function boot(): Promise<void> {
 
   void api.events.onPlaybackEnded(() => {
     libraryPage.setPlayingTrackId(null);
+    visualizer.setTrack(null);
     void api.playback.getPlaybackState().then((state) => playerBar.sync(state));
     void libraryPage.refresh();
     void statsPage.refresh();
@@ -155,7 +159,7 @@ async function boot(): Promise<void> {
     );
   }
 
-  await restoreNowPlayingBar(playerBar, libraryPage);
+  await restoreNowPlayingBar(playerBar, libraryPage, visualizer);
 
   async function playTrack(
     track: Track,
@@ -166,6 +170,7 @@ async function boot(): Promise<void> {
     saveLastTrackId(track.id);
     library.setPlayingTrackId(track.id);
     bar.setTrack(track);
+    visualizer.setTrack(track);
     void library.refresh();
   }
 
@@ -182,6 +187,7 @@ async function boot(): Promise<void> {
 async function restoreNowPlayingBar(
   playerBar: ReturnType<typeof initPlayerBar>,
   libraryPage: ReturnType<typeof initLibraryPage>,
+  visualizer: ReturnType<typeof initVisualizer>,
 ): Promise<void> {
   const state = await api.playback.getPlaybackState();
   playerBar.sync(state);
@@ -195,6 +201,7 @@ async function restoreNowPlayingBar(
   try {
     const track = await api.library.getTrack(trackId);
     playerBar.setTrack(track);
+    visualizer.setTrack(track);
     if (state.trackId) libraryPage.setPlayingTrackId(state.trackId);
   } catch {
     playerBar.setTrack(null);

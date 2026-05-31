@@ -306,6 +306,7 @@ pub fn run() {
             commands::playback::stop,
             commands::playback::seek,
             commands::playback::set_volume,
+            commands::playback::set_visualizer_active,
             commands::stats::get_stats,
             commands::stats::get_yearly_wrap,
             commands::stats::get_recent_tracks,

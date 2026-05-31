@@ -37,3 +37,8 @@ export async function setVolume(volume: number): Promise<void> {
   requireTauri();
   return invoke<void>("set_volume", { volume });
 }
+
+export async function setVisualizerActive(active: boolean): Promise<void> {
+  requireTauri();
+  return invoke<void>("set_visualizer_active", { active });
+}

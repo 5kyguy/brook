@@ -50,3 +50,8 @@ pub fn seek(state: State<'_, AppState>, position_secs: f64) -> Result<(), String
 pub fn set_volume(state: State<'_, AppState>, volume: f32) -> Result<(), String> {
     state.audio.set_volume(volume)
 }
+
+#[tauri::command]
+pub fn set_visualizer_active(state: State<'_, AppState>, active: bool) -> Result<(), String> {
+    state.audio.set_visualizer_active(active)
+}

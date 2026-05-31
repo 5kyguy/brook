@@ -80,4 +80,4 @@ Playback state reaches the UI through Tauri events (position, state, track chang
 - [x] Playlists, favorites, filters (UI wiring)
 - [x] Stats and yearly wrap
 - [x] Configurable music folder (picker in settings)
-- [ ] Visualizer spectrum data from Rust
+- [x] Visualizer spectrum data from Rust

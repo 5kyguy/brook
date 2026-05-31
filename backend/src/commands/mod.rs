@@ -12,7 +12,7 @@ pub use library::{
 };
 pub use lyrics::read_lyrics;
 pub use playback::{
-    get_playback_state, pause, play_track, resume, seek, set_volume, stop,
+    get_playback_state, pause, play_track, resume, seek, set_visualizer_active, set_volume, stop,
 };
 pub use playlists::{
     add_to_playlist, create_playlist, delete_playlist, get_playlist_tracks, get_playlists,

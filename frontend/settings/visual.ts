@@ -4,7 +4,6 @@ export interface VisualSettings {
   waveformEnabled: boolean;
   albumBackground: boolean;
   dynamicColor: boolean;
-  visualizerEnabled: boolean;
   cdAlbumCover: boolean;
 }
 
@@ -12,7 +11,6 @@ const DEFAULTS: VisualSettings = {
   waveformEnabled: true,
   albumBackground: true,
   dynamicColor: false,
-  visualizerEnabled: false,
   cdAlbumCover: false,
 };
 
@@ -21,7 +19,6 @@ function key(name: keyof VisualSettings): string {
     waveformEnabled: "waveform-enabled",
     albumBackground: "album-background",
     dynamicColor: "dynamic-color",
-    visualizerEnabled: "visualizer-enabled",
     cdAlbumCover: "cd-album-cover",
   };
   return STORAGE_PREFIX + map[name];
@@ -37,7 +34,6 @@ export function loadVisualSettings(): VisualSettings {
     waveformEnabled: read("waveformEnabled"),
     albumBackground: read("albumBackground"),
     dynamicColor: read("dynamicColor"),
-    visualizerEnabled: read("visualizerEnabled"),
     cdAlbumCover: read("cdAlbumCover"),
   };
 }
@@ -51,7 +47,6 @@ export function applyVisualSettings(settings: VisualSettings): void {
   document.body.dataset.waveformEnabled = String(settings.waveformEnabled);
   document.body.dataset.albumBackground = String(settings.albumBackground);
   document.body.dataset.dynamicColor = String(settings.dynamicColor);
-  document.body.dataset.visualizerEnabled = String(settings.visualizerEnabled);
   document.body.dataset.cdAlbumCover = String(settings.cdAlbumCover);
 }
 
@@ -71,6 +66,5 @@ export function initVisualSettings(): void {
   bindToggle("waveform-toggle", "waveformEnabled");
   bindToggle("album-background-toggle", "albumBackground");
   bindToggle("dynamic-color-toggle", "dynamicColor");
-  bindToggle("visualizer-enabled-toggle", "visualizerEnabled");
   bindToggle("cd-album-cover-toggle", "cdAlbumCover");
 }

@@ -27,6 +27,8 @@ symphonia = { version = "0.5", features = ["mp3", "flac", "vorbis", "pcm", "aac"
 rodio = "0.19"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rfd = "0.15"
+rustfft = "6.2"
+num-complex = "0.4"
 
 [profile.dev]
 incremental = true

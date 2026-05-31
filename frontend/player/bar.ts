@@ -92,13 +92,20 @@ export function initPlayerBar(): PlayerBar {
         titleEl.textContent = PLACEHOLDER_TITLE;
         albumEl.textContent = "";
         artistEl.textContent = PLACEHOLDER_ARTIST;
-        if (coverEl) coverEl.src = "./assets/appicon.png";
+        if (coverEl) {
+          coverEl.src = "./assets/appicon.png";
+          coverEl.style.cursor = "default";
+        }
         return;
       }
       titleEl.textContent = trackLabel(track);
       albumEl.textContent = track.album ?? "";
       artistEl.textContent = track.artist ?? trackSubtitle(track);
-      if (coverEl) coverEl.src = "./assets/appicon.png";
+      if (coverEl) {
+        coverEl.src = "./assets/appicon.png";
+        coverEl.style.cursor = "pointer";
+        coverEl.title = "Open fullscreen player";
+      }
     },
     setProgress(positionSecs, duration) {
       durationSecs = duration;
