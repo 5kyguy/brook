@@ -15,7 +15,7 @@ function heartIcon(filled: boolean, size = 20): string {
 }
 
 export interface TrackListActions {
-  onPlay: (track: Track) => void;
+  onPlay: (track: Track, queue?: Track[]) => void;
   onToggleFavorite: (track: Track) => void;
   onAddToPlaylist?: (track: Track) => void;
   onRemoveFromPlaylist?: (track: Track) => void;
@@ -120,7 +120,7 @@ export function renderTrackList(
         options.onAddToPlaylist(track);
         return;
       }
-      options.onPlay(track);
+      options.onPlay(track, tracks);
     });
   });
 }

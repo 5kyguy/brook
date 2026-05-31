@@ -1,6 +1,7 @@
 import * as api from "./api";
 import { initPlayerBar } from "./player/bar";
 import { getLastTrackId, saveLastTrackId } from "./player/last-track";
+import { createPlaybackQueue } from "./player/queue";
 import { initVisualizer } from "./player/visualizer";
 import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
@@ -22,36 +23,96 @@ async function boot(): Promise<void> {
   initMonochromeShell();
   ensureCreatePlaylistCardArt();
 
-  const playerBar = initPlayerBar();
+  const queue = createPlaybackQueue();
   const visualizer = initVisualizer();
   const router = new Router();
 
   let playlistPicker!: ReturnType<typeof initPlaylistPicker>;
+  let libraryPage!: ReturnType<typeof initLibraryPage>;
+  let playerBar!: ReturnType<typeof initPlayerBar>;
 
-  const libraryPage = initLibraryPage(
-    (track) => void playTrack(track, playerBar, libraryPage),
-    (track) => void toggleFavorite(track, libraryPage),
+  async function playQueuedTrack(track: Track): Promise<void> {
+    await api.playback.playTrack(track.id);
+    saveLastTrackId(track.id);
+    libraryPage.setPlayingTrackId(track.id);
+    playerBar.setTrack(track);
+    visualizer.setTrack(track);
+    void libraryPage.refresh();
+  }
+
+  async function playTrack(
+    track: Track,
+    queueTracks?: Track[],
+  ): Promise<void> {
+    if (queueTracks?.length) {
+      queue.setQueue(queueTracks, track.id);
+    } else {
+      queue.setQueue([track], track.id);
+    }
+    playerBar.syncQueueControls(queue.isShuffled(), queue.getRepeatMode());
+    await playQueuedTrack(track);
+  }
+
+  async function toggleFavorite(track: Track): Promise<void> {
+    await api.library.toggleFavorite(track.id);
+    await libraryPage.refresh();
+    await playlists.refresh();
+  }
+
+  async function toggleNowPlayingFavorite(): Promise<void> {
+    const track = queue.getCurrent();
+    if (!track) return;
+    await api.library.toggleFavorite(track.id);
+    const updated = await api.library.getTrack(track.id);
+    playerBar.setTrack(updated);
+    await libraryPage.refresh();
+    await playlists.refresh();
+  }
+
+  async function goNext(): Promise<void> {
+    const next = queue.advance();
+    if (!next) return;
+    await playQueuedTrack(next);
+  }
+
+  async function goPrev(): Promise<void> {
+    const state = await api.playback.getPlaybackState();
+    if (state.positionSecs > 3) {
+      await api.playback.seek(0);
+      return;
+    }
+    const prev = queue.retreat();
+    if (!prev) {
+      await api.playback.seek(0);
+      return;
+    }
+    await playQueuedTrack(prev);
+  }
+
+  libraryPage = initLibraryPage(
+    (track, queueTracks) => void playTrack(track, queueTracks),
+    (track) => void toggleFavorite(track),
     (track) => void playlistPicker.open(track),
   );
 
   const playlists = initPlaylists(
     router,
-    (track) => void playTrack(track, playerBar, libraryPage),
-    (track) => void toggleFavorite(track, libraryPage),
+    (track, queueTracks) => void playTrack(track, queueTracks),
+    (track) => void toggleFavorite(track),
     (track) => void playlistPicker.open(track),
     () => libraryPage.getPlayingTrackId(),
   );
 
   const statsPage = initStatsPage(
-    (track) => void playTrack(track, playerBar, libraryPage),
-    (track) => void toggleFavorite(track, libraryPage),
+    (track, queueTracks) => void playTrack(track, queueTracks),
+    (track) => void toggleFavorite(track),
     (track) => void playlistPicker.open(track),
     () => libraryPage.getPlayingTrackId(),
   );
 
   const recentPage = initRecentPage(
-    (track) => void playTrack(track, playerBar, libraryPage),
-    (track) => void toggleFavorite(track, libraryPage),
+    (track, queueTracks) => void playTrack(track, queueTracks),
+    (track) => void toggleFavorite(track),
     (track) => void playlistPicker.open(track),
     () => libraryPage.getPlayingTrackId(),
     () => {
@@ -62,6 +123,26 @@ async function boot(): Promise<void> {
 
   playlistPicker = initPlaylistPicker(() => {
     void playlists.refresh();
+  });
+
+  playerBar = initPlayerBar({
+    onPrev: () => void goPrev(),
+    onNext: () => void goNext(),
+    onToggleShuffle: () => {
+      const shuffled = queue.toggleShuffle();
+      playerBar.syncQueueControls(shuffled, queue.getRepeatMode());
+      return shuffled;
+    },
+    onCycleRepeat: () => {
+      const repeat = queue.cycleRepeat();
+      playerBar.syncQueueControls(queue.isShuffled(), repeat);
+      return repeat;
+    },
+    onToggleFavorite: () => void toggleNowPlayingFavorite(),
+    onAddToPlaylist: () => {
+      const track = queue.getCurrent();
+      if (track) void playlistPicker.open(track);
+    },
   });
 
   wirePlaylistModalSave(() => {
@@ -137,7 +218,13 @@ async function boot(): Promise<void> {
     playerBar.setProgress(payload.positionSecs, payload.durationSecs);
   });
 
-  void api.events.onPlaybackEnded(() => {
+  void api.events.onPlaybackEnded(async () => {
+    const next =
+      queue.getRepeatMode() === "one" ? queue.getCurrent() : queue.advance();
+    if (next) {
+      await playQueuedTrack(next);
+      return;
+    }
     libraryPage.setPlayingTrackId(null);
     visualizer.setTrack(null);
     void api.playback.getPlaybackState().then((state) => playerBar.sync(state));
@@ -160,28 +247,6 @@ async function boot(): Promise<void> {
   }
 
   await restoreNowPlayingBar(playerBar, libraryPage, visualizer);
-
-  async function playTrack(
-    track: Track,
-    bar: ReturnType<typeof initPlayerBar>,
-    library: ReturnType<typeof initLibraryPage>,
-  ): Promise<void> {
-    await api.playback.playTrack(track.id);
-    saveLastTrackId(track.id);
-    library.setPlayingTrackId(track.id);
-    bar.setTrack(track);
-    visualizer.setTrack(track);
-    void library.refresh();
-  }
-
-  async function toggleFavorite(
-    track: Track,
-    library: ReturnType<typeof initLibraryPage>,
-  ): Promise<void> {
-    await api.library.toggleFavorite(track.id);
-    await library.refresh();
-    await playlists.refresh();
-  }
 }
 
 async function restoreNowPlayingBar(

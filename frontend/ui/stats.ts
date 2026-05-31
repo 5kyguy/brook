@@ -16,7 +16,7 @@ export interface StatsPage {
 }
 
 export function initStatsPage(
-  onPlay: (track: Track) => void,
+  onPlay: (track: Track, queue?: Track[]) => void,
   onToggleFavorite: (track: Track) => void,
   onAddToPlaylist: (track: Track) => void,
   getPlayingTrackId: () => string | null,

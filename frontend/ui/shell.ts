@@ -3,10 +3,6 @@ import { SVG_PLAY, SVG_VOLUME, SVG_MUTE } from "./icons";
 /** Hide streaming-only chrome; init player chrome like Monochrome. */
 export function initMonochromeShell(): void {
   const hideIds = [
-    "shuffle-btn",
-    "prev-btn",
-    "next-btn",
-    "repeat-btn",
     "cast-btn",
     "queue-btn",
     "download-current-btn",
@@ -15,8 +11,6 @@ export function initMonochromeShell(): void {
     "toggle-lyrics-btn",
     "sleep-timer-btn",
     "sleep-timer-btn-desktop",
-    "mobile-add-playlist-btn",
-    "now-playing-add-playlist-btn",
     "radio-loading-indicator",
     "shuffle-liked-tracks-btn",
     "download-liked-tracks-btn",

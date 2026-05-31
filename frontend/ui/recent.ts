@@ -7,7 +7,7 @@ export interface RecentPage {
 }
 
 export function initRecentPage(
-  onPlay: (track: Track) => void,
+  onPlay: (track: Track, queue?: Track[]) => void,
   onToggleFavorite: (track: Track) => void,
   onAddToPlaylist: (track: Track) => void,
   getPlayingTrackId: () => string | null,

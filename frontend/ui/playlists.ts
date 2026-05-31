@@ -31,7 +31,7 @@ export interface PlaylistsController {
 
 export function initPlaylists(
   router: Router,
-  onPlay: (track: Track) => void,
+  onPlay: (track: Track, queue?: Track[]) => void,
   onToggleFavorite: (track: Track) => void,
   onAddToPlaylist: (track: Track) => void,
   getPlayingTrackId: () => string | null,

@@ -13,7 +13,7 @@ export interface LibraryPage {
 }
 
 export function initLibraryPage(
-  onPlay: (track: Track) => void,
+  onPlay: (track: Track, queue?: Track[]) => void,
   onToggleFavorite: (track: Track) => void,
   onAddToPlaylist: (track: Track) => void,
 ): LibraryPage {
