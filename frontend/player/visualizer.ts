@@ -1,4 +1,5 @@
-import { syncVisualEffectToggles } from "../settings/visual-effects";
+import { loadVisualSettings } from "../settings/visual";
+import { applyCdAlbumCoverEffect } from "../settings/visual-effects";
 import * as api from "../api";
 import type { PlaybackState } from "../types";
 import type { Track } from "../types";
@@ -38,6 +39,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   const titleEl = document.getElementById("fullscreen-track-title");
   const artistEl = document.getElementById("fullscreen-track-artist");
   const visualizerBtn = document.getElementById("fs-visualizer-btn");
+  const albumCoverBtn = document.getElementById("fs-album-cover-btn");
   const closeBtn = document.getElementById("close-fullscreen-cover-btn");
   const toggleUiBtn = document.getElementById("toggle-ui-btn");
   const barCover = document.querySelector<HTMLImageElement>(".now-playing-bar .cover");
@@ -56,6 +58,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
 
   let currentTrack: Track | null = null;
   let visualizerMode = false;
+  let albumCoverMode = false;
   let targetBins: number[] = [];
   let displayBins: number[] = [];
   let animationFrame = 0;
@@ -223,15 +226,21 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     }
   };
 
-  const setVisualizerMode = (active: boolean) => {
-    visualizerMode = active;
-    overlay.classList.toggle("visualizer-active", active);
-    visualizerBtn?.classList.toggle("active", active);
-    if (toggleUiBtn) toggleUiBtn.style.display = active ? "" : "none";
-    void api.playback.setVisualizerActive(active);
+  const syncPresentation = () => {
+    overlay.classList.toggle("visualizer-active", visualizerMode);
+    overlay.classList.toggle("album-cover-active", albumCoverMode);
+    visualizerBtn?.classList.toggle("active", visualizerMode);
+    albumCoverBtn?.classList.toggle("active", albumCoverMode);
+    applyCdAlbumCoverEffect(albumCoverMode);
 
-    if (active) {
-      setUiHidden(true);
+    if (toggleUiBtn) {
+      toggleUiBtn.style.display = visualizerMode && !albumCoverMode ? "" : "none";
+    }
+
+    void api.playback.setVisualizerActive(visualizerMode);
+
+    if (visualizerMode) {
+      setUiHidden(!albumCoverMode);
       startAnimation();
     } else {
       setUiHidden(false);
@@ -241,6 +250,16 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
       drawFrame();
     }
     resizeCanvas();
+  };
+
+  const setVisualizerMode = (active: boolean) => {
+    visualizerMode = active;
+    syncPresentation();
+  };
+
+  const setAlbumCoverMode = (active: boolean) => {
+    albumCoverMode = active;
+    syncPresentation();
   };
 
   const resetIdleTimer = () => {
@@ -263,7 +282,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   const open = () => {
     if (!currentTrack) return;
     syncTrackUi(currentTrack);
-    syncVisualEffectToggles();
+    albumCoverMode = loadVisualSettings().cdAlbumCover;
     overlay.style.display = "flex";
     overlay.classList.remove("controls-idle");
     resizeCanvas();
@@ -271,12 +290,16 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     updateFsPlayButton();
     setFsProgressUi(positionSecs, durationSecs);
 
-    setVisualizerMode(false);
+    visualizerMode = false;
+    syncPresentation();
   };
 
   const close = () => {
     overlay.style.display = "none";
-    setVisualizerMode(false);
+    visualizerMode = false;
+    albumCoverMode = false;
+    syncPresentation();
+    applyCdAlbumCoverEffect(loadVisualSettings().cdAlbumCover);
     toggleUiBtn?.classList.remove("visible");
     window.clearTimeout(idleTimer);
   };
@@ -295,11 +318,13 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
 
   visualizerBtn?.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (visualizerMode) {
-      setVisualizerMode(false);
-    } else {
-      setVisualizerMode(true);
-    }
+    setVisualizerMode(!visualizerMode);
+    resetIdleTimer();
+  });
+
+  albumCoverBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setAlbumCoverMode(!albumCoverMode);
     resetIdleTimer();
   });
 
