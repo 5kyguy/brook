@@ -3,7 +3,6 @@ import { initVisualSettings } from "./visual";
 import * as api from "../api";
 
 export interface SettingsPage {
-  setMusicRoot(path: string): void;
   refreshMusicRoot(): Promise<void>;
 }
 
@@ -14,12 +13,6 @@ export function initSettingsPage(
   initThemeSettings();
   initVisualSettings();
 
-  const commitEl = document.getElementById("settings-commit-info");
-  if (commitEl) {
-    commitEl.textContent = typeof __GIT_COMMIT__ !== "undefined" ? __GIT_COMMIT__ : "dev";
-  }
-
-  const rootEl = document.getElementById("settings-music-root");
   const statusEl = document.getElementById("settings-music-root-status");
 
   if (!document.getElementById("settings-music-folder-group")) {
@@ -36,21 +29,9 @@ export function initSettingsPage(
           </div>
           <div class="settings-music-folder-actions">
             <button type="button" id="settings-choose-music-folder-btn" class="btn-secondary">Choose folder…</button>
-            <button type="button" id="settings-reset-music-folder-btn" class="btn-secondary">Use default</button>
           </div>
         </div>
         <p id="settings-music-root-status" style="text-align:center;color:var(--muted-foreground);font-size:0.8rem"></p>
-      `;
-      list.insertBefore(group, list.firstChild);
-    }
-  }
-
-  if (!document.getElementById("settings-rescan-btn")) {
-    const list = document.querySelector("#page-settings .settings-list");
-    if (list) {
-      const group = document.createElement("div");
-      group.className = "settings-group";
-      group.innerHTML = `
         <div class="setting-item">
           <div class="info">
             <span class="label">Music library</span>
@@ -60,7 +41,7 @@ export function initSettingsPage(
         </div>
         <p id="settings-rescan-status" style="text-align:center;color:var(--muted-foreground);font-size:0.8rem"></p>
       `;
-      list.appendChild(group);
+      list.insertBefore(group, list.firstChild);
     }
   }
 
@@ -68,12 +49,7 @@ export function initSettingsPage(
     document.getElementById("settings-music-root-status") ?? statusEl;
 
   async function refreshMusicRoot() {
-    const path = await api.library.getMusicRoot();
-    setMusicRoot(path);
-  }
-
-  function setMusicRoot(path: string) {
-    if (rootEl) rootEl.textContent = path;
+    await api.library.getMusicRoot();
   }
 
   document.getElementById("settings-choose-music-folder-btn")?.addEventListener("click", () => {
@@ -86,37 +62,13 @@ export function initSettingsPage(
         const picked = await api.library.pickMusicFolder();
         if (!picked) return;
         if (musicStatus) musicStatus.textContent = "Updating music folder…";
-        const path = await api.library.setMusicRoot(picked);
-        setMusicRoot(path);
+        await api.library.setMusicRoot(picked);
         await onMusicRootChanged();
         if (musicStatus) musicStatus.textContent = "Music folder updated and library rescanned.";
       } catch (error) {
         if (musicStatus) {
           musicStatus.textContent =
             error instanceof Error ? error.message : "Failed to update music folder.";
-        }
-      } finally {
-        btn.disabled = false;
-      }
-    })();
-  });
-
-  document.getElementById("settings-reset-music-folder-btn")?.addEventListener("click", () => {
-    const btn = document.getElementById("settings-reset-music-folder-btn") as HTMLButtonElement | null;
-    if (!btn) return;
-    btn.disabled = true;
-    if (musicStatus) musicStatus.textContent = "";
-    void (async () => {
-      try {
-        if (musicStatus) musicStatus.textContent = "Resetting to default folder…";
-        const path = await api.library.resetMusicRoot();
-        setMusicRoot(path);
-        await onMusicRootChanged();
-        if (musicStatus) musicStatus.textContent = "Using default music folder.";
-      } catch (error) {
-        if (musicStatus) {
-          musicStatus.textContent =
-            error instanceof Error ? error.message : "Failed to reset music folder.";
         }
       } finally {
         btn.disabled = false;
@@ -152,7 +104,6 @@ export function initSettingsPage(
   });
 
   return {
-    setMusicRoot,
     refreshMusicRoot,
   };
 }

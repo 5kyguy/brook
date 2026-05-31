@@ -7,7 +7,6 @@ import { createPlaybackQueue } from "./player/queue";
 import { initKeyboardShortcuts } from "./player/shortcuts";
 import { initVisualizer } from "./player/visualizer";
 import { trackLabel } from "./ui/dom";
-import { initWaveform } from "./player/waveform";
 import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
 import { setCurrentTrackForVisuals, syncVisualEffectToggles } from "./settings/visual-effects";
@@ -34,7 +33,6 @@ async function boot(): Promise<void> {
 
   const queue = createPlaybackQueue();
   const lyricsPanel = initLyricsPanel();
-  const waveform = initWaveform();
   const router = new Router();
 
   let playlistPicker!: ReturnType<typeof initPlaylistPicker>;
@@ -59,7 +57,6 @@ async function boot(): Promise<void> {
   async function setNowPlayingTrack(track: Track | null): Promise<void> {
     playerBar.setTrack(track);
     visualizer.setTrack(track);
-    waveform.loadTrack(track?.id ?? null);
     await lyricsPanel.setTrack(track);
     if (track) {
       setCurrentTrackForVisuals(track);
@@ -213,10 +210,6 @@ async function boot(): Promise<void> {
     trackActions.onToggleFavorite,
     trackActions.onAddToPlaylist,
     () => libraryPage.getPlayingTrackId(),
-    () => {
-      void playlists.refresh();
-      void statsPage.refresh();
-    },
   );
 
   playlistPicker = initPlaylistPicker(() => {
@@ -401,7 +394,6 @@ async function boot(): Promise<void> {
   void api.events.onPlaybackPosition((payload) => {
     playerBar.setProgress(payload.positionSecs, payload.durationSecs);
     visualizer.setProgress(payload.positionSecs, payload.durationSecs);
-    waveform.setProgress(payload.positionSecs, payload.durationSecs);
     lyricsPanel.setPosition(payload.positionSecs);
   });
 
@@ -424,8 +416,6 @@ async function boot(): Promise<void> {
   });
 
   try {
-    const musicRoot = await api.library.getMusicRoot();
-    settingsPage.setMusicRoot(musicRoot);
     await scanAndLoadLibrary(libraryPage);
     await playlists.refresh();
   } catch (error) {

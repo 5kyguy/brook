@@ -57,8 +57,3 @@ export async function toggleFavorite(trackId: string): Promise<boolean> {
   requireTauri();
   return invoke<boolean>("toggle_favorite", { trackId });
 }
-
-export async function getWaveformPeaks(trackId: string): Promise<number[]> {
-  requireTauri();
-  return invoke<number[]>("get_waveform_peaks", { trackId });
-}

@@ -4,10 +4,6 @@ import { loadVisualSettings } from "./visual";
 
 let dynamicColorStyle: HTMLStyleElement | null = null;
 
-function pageBackgroundEl(): HTMLElement | null {
-  return document.getElementById("page-background");
-}
-
 let currentTrackForVisuals: Track | null = null;
 
 export function setCurrentTrackForVisuals(track: Track | null): void {
@@ -21,33 +17,14 @@ export function reapplyTrackVisualEffects(): void {
 
 export async function applyTrackVisualEffects(track: Track | null): Promise<void> {
   const settings = loadVisualSettings();
-  const bg = pageBackgroundEl();
 
-  if (!track || !settings.albumBackground) {
-    document.body.classList.remove("has-page-background");
-    if (bg) {
-      bg.classList.remove("active");
-      bg.style.backgroundImage = "";
-    }
-    if (!settings.dynamicColor) {
-      clearDynamicAccent();
-    }
+  if (!track || !settings.dynamicColor) {
+    clearDynamicAccent();
     return;
   }
 
   const coverUrl = await getTrackCoverUrl(track.id);
-
-  if (settings.albumBackground && bg) {
-    bg.style.backgroundImage = `url("${coverUrl}")`;
-    bg.classList.add("active");
-    document.body.classList.add("has-page-background");
-  }
-
-  if (settings.dynamicColor) {
-    await applyDynamicAccent(coverUrl);
-  } else {
-    clearDynamicAccent();
-  }
+  await applyDynamicAccent(coverUrl);
 }
 
 export function applyCdAlbumCoverEffect(enabled: boolean): void {

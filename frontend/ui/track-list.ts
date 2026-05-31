@@ -29,15 +29,6 @@ export interface TrackListOptions extends TrackListActions {
   emptyMessage?: string;
 }
 
-const TRACKLIST_HEADER_HTML = `
-  <div class="track-list-header">
-    <span>Title</span>
-    <span class="track-list-header-spacer" aria-hidden="true"></span>
-    <span class="duration-header">Duration</span>
-    <span style="display: flex; justify-content: flex-end; opacity: 0.8;">Menu</span>
-  </div>
-`;
-
 export function createTrackItemHTML(
   track: Track,
   options: TrackListOptions,
@@ -99,9 +90,9 @@ export function renderTrackList(
     return;
   }
 
-  container.innerHTML =
-    TRACKLIST_HEADER_HTML +
-    tracks.map((track) => createTrackItemHTML(track, options)).join("");
+  container.innerHTML = tracks
+    .map((track) => createTrackItemHTML(track, options))
+    .join("");
 
   applyTrackCovers(container);
 

@@ -118,7 +118,6 @@
     --modal-max-width-xl: 800px;
 
     /* Covers */
-    --cover-filter: blur(50px) brightness(0.4);
     --cover-radius: var(--radius-md);
     --color-danger: #ef4444;
     --color-danger-hover: #dc2626;
@@ -352,7 +351,6 @@
     --highlight-rgb: 26, 26, 26;
     --active-highlight: var(--highlight);
     --explicit-badge: #1a1a1a;
-    --cover-filter: blur(50px) brightness(1.6) opacity(0.35);
 }
 
 *,
@@ -1078,37 +1076,6 @@ ul {
     opacity: 1;
 }
 
-#page-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 60vh;
-    min-height: 400px;
-    z-index: 0;
-    background-size: cover;
-    background-position: center 20%;
-    background-repeat: no-repeat;
-    opacity: 0;
-    transition: opacity 0.5s ease-in-out;
-
-    /* Fade out at the bottom */
-    mask-image: linear-gradient(to bottom, rgb(0, 0, 0, 1) 0%, rgb(0, 0, 0, 0.8) 40%, rgb(0, 0, 0, 0) 100%);
-
-    /* Blur effect */
-    filter: var(--cover-filter);
-    pointer-events: none;
-}
-
-#page-background.active {
-    opacity: 1;
-}
-
-/* Light mode adjustments */
-:root[data-theme='white'] #page-background {
-    mask-image: linear-gradient(to bottom, rgb(0, 0, 0, 1) 0%, rgb(0, 0, 0, 0) 100%);
-}
-
 .now-playing-bar {
     grid-area: player;
     padding: var(--spacing-sm) var(--spacing-md);
@@ -1433,15 +1400,6 @@ ul {
     font-size: 1.5rem;
     line-height: 1;
     z-index: 1;
-}
-
-body.has-page-background .search-bar input {
-    background-color: var(--background);
-}
-
-body.has-page-background .track-item:hover {
-    background-color: var(--track-hover-bg, var(--secondary));
-    transform: scale(1.005);
 }
 
 .search-history {
@@ -3642,11 +3600,6 @@ input:checked + .slider::before {
     gap: var(--spacing-sm);
 }
 
-.player-controls.waveform-loaded {
-    gap: 0.1rem;
-    margin-bottom: 0.3rem;
-}
-
 .player-controls .buttons {
     display: flex;
     align-items: center;
@@ -3789,22 +3742,6 @@ input:checked + .slider::before {
     background-color: var(--highlight);
     border-radius: var(--radius-full);
     box-shadow: 0 2px 4px rgb(0, 0, 0, 0.3);
-}
-
-.progress-bar.has-waveform.waveform-loaded {
-    height: 28px;
-}
-
-.progress-bar.has-waveform.waveform-loaded .progress-fill {
-    background-color: var(--primary);
-}
-
-.progress-bar.has-waveform.waveform-loaded .progress-fill::after {
-    display: none;
-}
-
-#waveform-canvas {
-    display: none;
 }
 
 .volume-controls {
@@ -4346,10 +4283,27 @@ input:checked + .slider::before {
     opacity: 0;
 }
 
-#fullscreen-cover-overlay.ui-hidden #visualizer-container {
+#fullscreen-cover-overlay.ui-hidden:not(.album-cover-active) #visualizer-container {
     filter: none;
     transform: none;
     opacity: 1;
+}
+
+#fullscreen-cover-overlay.album-cover-active.visualizer-active #visualizer-container {
+    filter: blur(32px) saturate(0.88) brightness(0.62);
+    transform: scale(1.1);
+    opacity: 0.92;
+}
+
+#fullscreen-cover-overlay.album-cover-active .fullscreen-main-view,
+#fullscreen-cover-overlay.album-cover-active .fullscreen-controls,
+#fullscreen-cover-overlay.album-cover-active #fullscreen-next-track {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#fullscreen-cover-overlay.album-cover-active .fullscreen-artwork-card {
+    z-index: 2;
 }
 
 #fullscreen-cover-overlay:not(.ui-hidden) .fullscreen-main-view,
@@ -6904,10 +6858,6 @@ img[src=''] {
         position: relative !important;
         padding-bottom: 50px !important;
     }
-
-    .player-controls.waveform-loaded {
-        gap: 0;
-    }
 }
 
 /* --- Responsive & Media Queries --- */
@@ -7707,7 +7657,7 @@ img[src=''] {
         min-width: 0;
     }
 
-    .progress-bar:not(.waveform-loaded),
+    .progress-bar,
     .volume-bar {
         height: 8px;
     }
@@ -10904,8 +10854,13 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     order: 2;
 }
 
+#fullscreen-cover-overlay .fullscreen-top-actions #fs-album-cover-btn {
+    order: 3;
+}
+
 #fullscreen-cover-overlay .fullscreen-top-actions #toggle-fullscreen-lyrics-btn,
 #fullscreen-cover-overlay .fullscreen-top-actions #fs-visualizer-btn,
+#fullscreen-cover-overlay .fullscreen-top-actions #fs-album-cover-btn,
 #fullscreen-cover-overlay .fullscreen-top-actions #close-fullscreen-cover-btn,
 #fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn {
     position: static;
@@ -10931,7 +10886,7 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
 }
 
 #fullscreen-cover-overlay .fullscreen-top-actions #toggle-ui-btn {
-    order: 3;
+    order: 4;
     display: none;
 }
 
@@ -10943,7 +10898,8 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
 
 #fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions button,
 #fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #close-fullscreen-cover-btn,
-#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #fs-visualizer-btn {
+#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #fs-visualizer-btn,
+#fullscreen-cover-overlay.ui-hidden .fullscreen-top-actions #fs-album-cover-btn {
     opacity: 1;
     pointer-events: auto;
     transform: none;
@@ -11046,6 +11002,7 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
 }
 
 #fullscreen-cover-overlay .fs-visualizer-btn,
+#fullscreen-cover-overlay .fs-album-cover-btn,
 #fullscreen-cover-overlay .fs-volume-btn {
     width: 30px;
     height: 30px;
@@ -11054,12 +11011,14 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
 }
 
 #fullscreen-cover-overlay .fs-visualizer-btn:hover,
+#fullscreen-cover-overlay .fs-album-cover-btn:hover,
 #fullscreen-cover-overlay .fs-volume-btn:hover {
     background: transparent;
     color: rgb(255 255 255 / 0.9);
 }
 
-#fullscreen-cover-overlay .fs-visualizer-btn.active {
+#fullscreen-cover-overlay .fs-visualizer-btn.active,
+#fullscreen-cover-overlay .fs-album-cover-btn.active {
     color: rgb(var(--fs-accent-rgb) / 0.96);
 }
 
@@ -11315,7 +11274,8 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
         display: none !important;
     }
 
-    #fullscreen-cover-overlay .fullscreen-top-actions #fs-visualizer-btn {
+    #fullscreen-cover-overlay .fullscreen-top-actions #fs-visualizer-btn,
+    #fullscreen-cover-overlay .fullscreen-top-actions #fs-album-cover-btn {
         display: flex !important;
         width: 38px;
         height: 38px;

@@ -596,7 +596,6 @@
             </aside>
 
             <main class="main-content">
-                <div id="page-background"></div>
                 <header class="main-header">
                     <div class="navigation-controls desktop-only">
                         <button id="nav-back" class="nav-btn" title="Go Back">
@@ -634,9 +633,6 @@
                 <div id="page-library" class="page">
                     <section class="content-section" id="chart-playlists-section">
                         <h2 class="section-title">Top charts</h2>
-                        <p class="stats-page-subtitle">
-                            Your most-played tracks. Weekly and monthly use sliding windows; quarterly and yearly follow the calendar. Refreshed daily.
-                        </p>
                         <div class="card-grid" id="chart-playlists-container"></div>
                     </section>
                     <section class="content-section">
@@ -739,21 +735,12 @@
                 </div>
 
                 <div id="page-recent" class="page">
-                    <div
-                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem"
-                    >
-                        <h2 class="section-title" style="margin-bottom: 0">Recently played</h2>
-                        <button class="btn-secondary" id="clear-history-btn" title="Clear History">
-                            <use svg="!lucide/trash-2.svg" size="16" />
-                            <span>Clear</span>
-                        </button>
-                    </div>
+                    <h2 class="section-title">Recently played</h2>
                     <div class="track-list" id="recent-tracks-container"></div>
                 </div>
 
                 <div id="page-stats" class="page">
                     <h2 class="section-title">Your listening stats</h2>
-                    <p class="stats-page-subtitle">Based on your plays in this app.</p>
                     <label class="stats-year-picker stats-year-picker--header">
                         <span>Wrap year</span>
                         <select id="stats-year-select" class="library-filter-select"></select>
@@ -856,45 +843,6 @@
                             <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
-                                        <span class="label">Theme</span>
-                                        <span class="description">Choose your preferred color scheme</span>
-                                    </div>
-                                </div>
-                                <div class="theme-picker" id="theme-picker">
-                                    <div class="theme-option" data-theme="monochrome">Black</div>
-                                    <div class="theme-option" data-theme="white">White</div>
-                                    <div class="theme-option" data-theme="ocean">Ocean</div>
-                                    <div class="theme-option" data-theme="purple">Purple</div>
-                                    <div class="theme-option" data-theme="forest">Forest</div>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Waveform Seekbar</span>
-                                        <span class="description"
-                                            >Show a visual waveform of the track in the progress bar
-                                            (Experimental)</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="waveform-toggle" />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Album Cover Background</span>
-                                        <span class="description"
-                                            >Use the album cover as a blurred background on album pages and as primary
-                                            color</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="album-background-toggle" />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
                                         <span class="label">Dynamic Colors</span>
                                         <span class="description"
                                             >Automatically change the app accent color based on the currently playing
@@ -937,25 +885,22 @@
                                     <button id="customize-shortcuts-btn" class="btn-secondary">Customize</button>
                                 </div>
                             </div>
-                            <p
-                                id="settings-music-root"
-                                style="
-                                    text-align: center;
-                                    color: var(--muted-foreground);
-                                    font-size: 0.8rem;
-                                    padding: 0.5rem 1rem 0;
-                                    word-break: break-all;
-                                "
-                            ></p>
-                            <p
-                                id="settings-commit-info"
-                                style="
-                                    text-align: center;
-                                    color: var(--muted-foreground);
-                                    font-size: 0.75rem;
-                                    padding: 1rem 0 0.5rem;
-                                "
-                            ></p>
+
+                            <div class="settings-group" id="settings-theme-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Theme</span>
+                                        <span class="description">Choose your preferred color scheme</span>
+                                    </div>
+                                </div>
+                                <div class="theme-picker" id="theme-picker">
+                                    <div class="theme-option" data-theme="monochrome">Black</div>
+                                    <div class="theme-option" data-theme="white">White</div>
+                                    <div class="theme-option" data-theme="ocean">Ocean</div>
+                                    <div class="theme-option" data-theme="purple">Purple</div>
+                                    <div class="theme-option" data-theme="forest">Forest</div>
+                                </div>
+                            </div>
                     </div>
                 </div>
             </main>

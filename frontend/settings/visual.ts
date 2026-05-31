@@ -3,23 +3,17 @@ import { reapplyTrackVisualEffects, syncVisualEffectToggles } from "./visual-eff
 const STORAGE_PREFIX = "brook-";
 
 export interface VisualSettings {
-  waveformEnabled: boolean;
-  albumBackground: boolean;
   dynamicColor: boolean;
   cdAlbumCover: boolean;
 }
 
 const DEFAULTS: VisualSettings = {
-  waveformEnabled: true,
-  albumBackground: true,
   dynamicColor: false,
   cdAlbumCover: false,
 };
 
 function key(name: keyof VisualSettings): string {
   const map: Record<keyof VisualSettings, string> = {
-    waveformEnabled: "waveform-enabled",
-    albumBackground: "album-background",
     dynamicColor: "dynamic-color",
     cdAlbumCover: "cd-album-cover",
   };
@@ -33,8 +27,6 @@ export function loadVisualSettings(): VisualSettings {
     return stored === "true";
   };
   return {
-    waveformEnabled: read("waveformEnabled"),
-    albumBackground: read("albumBackground"),
     dynamicColor: read("dynamicColor"),
     cdAlbumCover: read("cdAlbumCover"),
   };
@@ -46,8 +38,6 @@ export function saveVisualSetting(name: keyof VisualSettings, value: boolean): v
 }
 
 export function applyVisualSettings(settings: VisualSettings): void {
-  document.body.dataset.waveformEnabled = String(settings.waveformEnabled);
-  document.body.dataset.albumBackground = String(settings.albumBackground);
   document.body.dataset.dynamicColor = String(settings.dynamicColor);
   document.body.dataset.cdAlbumCover = String(settings.cdAlbumCover);
   syncVisualEffectToggles();
@@ -63,15 +53,13 @@ export function initVisualSettings(): void {
     input.checked = settings[name];
     input.addEventListener("change", () => {
       saveVisualSetting(name, input.checked);
-      if (name === "albumBackground" || name === "dynamicColor") {
+      if (name === "dynamicColor") {
         reapplyTrackVisualEffects();
       }
       syncVisualEffectToggles();
     });
   };
 
-  bindToggle("waveform-toggle", "waveformEnabled");
-  bindToggle("album-background-toggle", "albumBackground");
   bindToggle("dynamic-color-toggle", "dynamicColor");
   bindToggle("cd-album-cover-toggle", "cdAlbumCover");
 }
