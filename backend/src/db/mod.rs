@@ -117,6 +117,54 @@ impl Database {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_scan_fingerprints(
+        &self,
+    ) -> Result<std::collections::HashMap<String, (i64, i64)>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, modified_ms, file_size FROM tracks")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut map = std::collections::HashMap::new();
+        for row in rows {
+            let (id, mtime, size) = row.map_err(|e| e.to_string())?;
+            map.insert(id, (mtime, size));
+        }
+        Ok(map)
+    }
+
+    pub fn delete_tracks_not_in(&mut self, keep_ids: &[String]) -> Result<usize, String> {
+        if keep_ids.is_empty() {
+            let removed = self
+                .conn
+                .execute("DELETE FROM tracks", [])
+                .map_err(|e| e.to_string())?;
+            return Ok(removed);
+        }
+
+        let placeholders = keep_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!("DELETE FROM tracks WHERE id NOT IN ({placeholders})");
+        let params: Vec<&dyn rusqlite::ToSql> = keep_ids
+            .iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
+        self.conn
+            .execute(&sql, params.as_slice())
+            .map_err(|e| e.to_string())
+    }
+
     pub fn upsert_track(
         &mut self,
         file: &ScannedFile,
@@ -198,18 +246,34 @@ impl Database {
              WHERE 1=1",
         );
 
-        let mut artist = filter.artist.clone();
-        let mut album = filter.album.clone();
-        let mut year = filter.year;
+        let mut bind: Vec<rusqlite::types::Value> = Vec::new();
 
-        if artist.is_some() {
+        if let Some(artist) = filter.artist.filter(|s| !s.is_empty()) {
             sql.push_str(" AND t.artist = ?");
+            bind.push(artist.into());
         }
-        if album.is_some() {
+        if let Some(album) = filter.album.filter(|s| !s.is_empty()) {
             sql.push_str(" AND t.album = ?");
+            bind.push(album.into());
         }
-        if year.is_some() {
+        if let Some(year) = filter.year {
             sql.push_str(" AND t.year = ?");
+            bind.push(year.into());
+        }
+        if let Some(query) = filter
+            .query
+            .as_ref()
+            .map(|q| q.trim())
+            .filter(|q| !q.is_empty())
+        {
+            sql.push_str(
+                " AND (t.title LIKE ? OR t.artist LIKE ? OR t.album LIKE ? OR t.id LIKE ?)",
+            );
+            let pattern = format!("%{query}%");
+            bind.push(pattern.clone().into());
+            bind.push(pattern.clone().into());
+            bind.push(pattern.clone().into());
+            bind.push(pattern.into());
         }
 
         let sort_by = filter.sort_by.as_deref().unwrap_or("title");
@@ -219,12 +283,11 @@ impl Database {
         } else {
             "ASC"
         };
-        // COLLATE must precede ASC/DESC: `col COLLATE NOCASE ASC`, not `col ASC COLLATE NOCASE`.
-        // NOCASE applies only to text columns (not INTEGER year).
         let order_by = match sort_by {
             "artist" => format!("t.artist COLLATE NOCASE {sort_dir}"),
             "album" => format!("t.album COLLATE NOCASE {sort_dir}"),
             "year" => format!("t.year {sort_dir}"),
+            "dateAdded" | "date_added" => format!("t.scanned_at {sort_dir}"),
             _ => format!("t.title COLLATE NOCASE {sort_dir}"),
         };
         sql.push_str(&format!(" ORDER BY {order_by}"));
@@ -241,40 +304,12 @@ impl Database {
             Ok(tracks)
         }
 
-        match (artist.take(), album.take(), year.take()) {
-            (Some(a), Some(al), Some(y)) => {
-                let rows = stmt.query(params![a, al, y]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (Some(a), Some(al), None) => {
-                let rows = stmt.query(params![a, al]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (Some(a), None, Some(y)) => {
-                let rows = stmt.query(params![a, y]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (None, Some(al), Some(y)) => {
-                let rows = stmt.query(params![al, y]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (Some(a), None, None) => {
-                let rows = stmt.query(params![a]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (None, Some(al), None) => {
-                let rows = stmt.query(params![al]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (None, None, Some(y)) => {
-                let rows = stmt.query(params![y]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-            (None, None, None) => {
-                let rows = stmt.query([]).map_err(|e| e.to_string())?;
-                collect_tracks(rows)
-            }
-        }
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            bind.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let rows = stmt
+            .query(param_refs.as_slice())
+            .map_err(|e| e.to_string())?;
+        collect_tracks(rows)
     }
 
     fn is_favorite(&self, track_id: &str) -> Result<bool, String> {

@@ -1,13 +1,16 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Emitter, State};
 
+use crate::audio::decode;
 use crate::cover_art::{self, AlbumArtPayload};
 use crate::metadata;
 use crate::models::{ScanCompletePayload, ScanProgressPayload, ScanResult, Track, TrackFilter};
 use crate::paths;
 use crate::scanner;
 use crate::state::AppState;
+use crate::waveform;
 
 fn resolve_music_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -68,9 +71,11 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
     let total = files.len();
     let mut added = 0usize;
     let mut updated = 0usize;
+    let mut skipped = 0usize;
 
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
-    let existing_ids = db.list_track_ids()?;
+    let fingerprints = db.get_scan_fingerprints()?;
+    let scanned_ids: Vec<String> = files.iter().map(|f| f.id.clone()).collect();
 
     for (index, file) in files.iter().enumerate() {
         let _ = app.emit(
@@ -82,8 +87,15 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
             },
         );
 
+        if let Some((stored_mtime, stored_size)) = fingerprints.get(&file.id) {
+            if *stored_mtime == file.modified_ms as i64 && *stored_size == file.file_size as i64 {
+                skipped += 1;
+                continue;
+            }
+        }
+
         let meta = metadata::read_metadata(Path::new(&file.absolute_path)).unwrap_or_default();
-        let existed = existing_ids.contains(&file.id);
+        let existed = fingerprints.contains_key(&file.id);
         db.upsert_track(file, &meta)?;
         if existed {
             updated += 1;
@@ -92,6 +104,7 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
         }
     }
 
+    let removed = db.delete_tracks_not_in(&scanned_ids)?;
     let track_count = total;
     let _ = app.emit(
         "library:scan-complete",
@@ -102,6 +115,8 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
         track_count,
         added,
         updated,
+        skipped,
+        removed,
     })
 }
 
@@ -122,13 +137,47 @@ pub fn get_track(state: State<'_, AppState>, id: String) -> Result<Track, String
 
 #[tauri::command]
 pub fn get_album_art(state: State<'_, AppState>, id: String) -> Result<Option<AlbumArtPayload>, String> {
-    let row = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.get_track_row(&id)?
-    };
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let row = db.get_track_row(&id)?;
     cover_art::get_cover(
         &state.covers_dir,
         Path::new(&row.absolute_path),
-        &id,
+        &row.id,
     )
+}
+
+#[tauri::command]
+pub fn get_waveform_peaks(state: State<'_, AppState>, track_id: String) -> Result<Vec<f32>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let row = db.get_track_row(&track_id)?;
+    let cache_path = waveform_cache_path(&state.peaks_dir, &track_id, row.modified_ms);
+
+    if cache_path.is_file() {
+        if let Ok(text) = fs::read_to_string(&cache_path) {
+            if let Ok(peaks) = serde_json::from_str::<Vec<f32>>(&text) {
+                if !peaks.is_empty() {
+                    return Ok(peaks);
+                }
+            }
+        }
+    }
+
+    let bytes = fs::read(&row.absolute_path)
+        .map_err(|e| format!("Failed to read {}: {e}", row.absolute_path))?;
+    let decoded = decode::decode_from_bytes(bytes, &row.extension)?;
+    let peaks = waveform::peaks_from_samples(&decoded.samples, decoded.channels);
+
+    if let Some(parent) = cache_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string(&peaks) {
+        let _ = fs::write(&cache_path, json);
+    }
+
+    Ok(peaks)
+}
+
+fn waveform_cache_path(peaks_dir: &Path, track_id: &str, modified_ms: i128) -> PathBuf {
+    let safe_id = track_id.replace('/', "__");
+    peaks_dir.join(format!("{safe_id}.{modified_ms}.json"))
 }

@@ -24,8 +24,22 @@ pub struct TrackFilter {
     pub artist: Option<String>,
     pub album: Option<String>,
     pub year: Option<i32>,
+    pub query: Option<String>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoritesChangedPayload {
+    pub track_id: String,
+    pub liked: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistsChangedPayload {
+    pub playlist_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,6 +48,8 @@ pub struct ScanResult {
     pub track_count: usize,
     pub added: usize,
     pub updated: usize,
+    pub skipped: usize,
+    pub removed: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
