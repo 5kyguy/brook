@@ -20,6 +20,7 @@ export interface TrackFilter {
   artist?: string;
   album?: string;
   year?: number;
+  query?: string;
   sortBy?: "title" | "artist" | "album" | "year" | "dateAdded";
   sortOrder?: "asc" | "desc";
 }
@@ -28,6 +29,8 @@ export interface ScanResult {
   trackCount: number;
   added: number;
   updated: number;
+  skipped: number;
+  removed: number;
 }
 
 export interface PlaybackState {
@@ -63,6 +66,15 @@ export interface ScanProgressPayload {
 
 export interface ScanCompletePayload {
   trackCount: number;
+}
+
+export interface FavoritesChangedPayload {
+  trackId: string;
+  liked: boolean;
+}
+
+export interface PlaylistsChangedPayload {
+  playlistId?: string;
 }
 
 export interface Playlist {
@@ -133,7 +145,15 @@ export interface LibraryFacets {
   years: number[];
 }
 
-export type RouteId = "library" | "recent" | "stats" | "settings" | "playlist";
+export type RouteId =
+  | "library"
+  | "recent"
+  | "stats"
+  | "settings"
+  | "playlist"
+  | "search"
+  | "artist"
+  | "album";
 
 export interface RouteDefinition {
   id: RouteId;

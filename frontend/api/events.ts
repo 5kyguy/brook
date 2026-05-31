@@ -1,10 +1,13 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+import * as api from "../api";
 import type {
+  FavoritesChangedPayload,
   PlaybackEndedPayload,
   PlaybackPositionPayload,
   PlaybackSpectrumPayload,
   PlaybackStatePayload,
+  PlaylistsChangedPayload,
   ScanCompletePayload,
   ScanProgressPayload,
   Track,
@@ -70,6 +73,24 @@ export async function onPlaybackSpectrum(
 ): Promise<UnlistenFn> {
   if (!isTauri()) return () => {};
   return listen<PlaybackSpectrumPayload>("playback:spectrum", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onFavoritesChanged(
+  handler: (payload: FavoritesChangedPayload) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) return () => {};
+  return listen<FavoritesChangedPayload>("db:favorites-changed", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onPlaylistsChanged(
+  handler: (payload: PlaylistsChangedPayload) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) return () => {};
+  return listen<PlaylistsChangedPayload>("db:playlists-changed", (event) => {
     handler(event.payload);
   });
 }

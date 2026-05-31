@@ -1,3 +1,5 @@
+declare const __GIT_COMMIT__: string;
+
 declare module "*?svg&icon" {
   const icon: (size?: number, attrs?: Record<string, string>) => string;
   export default icon;

@@ -48,61 +48,11 @@
 
         <div id="context-menu">
             <ul>
-                <li data-action="shuffle-play-card" data-type-filter="album,playlist,mix,user-playlist">
-                    Shuffle play
-                </li>
-                <li data-action="start-infinite-radio" data-type-filter="track,album,playlist,user-playlist">
-                    Start Infinite Radio
-                </li>
-                <li data-action="start-mix" data-type-filter="album,track,video">Start mix</li>
                 <li data-action="play-next">Play next</li>
                 <li data-action="add-to-queue">Add to queue</li>
-                <li
-                    data-action="toggle-like"
-                    data-type-filter="album,artist,playlist,mix,user-playlist"
-                    data-label-album="Save album to library"
-                    data-label-unlike-album="Remove album from library"
-                    data-label-playlist="Save playlist to library"
-                    data-label-unlike-playlist="Remove playlist from library"
-                >
-                    Like
-                </li>
-                <li data-action="toggle-pin" data-type-filter="album,artist,playlist,user-playlist">Pin</li>
-                <li data-action="add-to-playlist" data-type-filter="track,video">Add to playlist</li>
-                <li data-action="request-song" data-type-filter="track,video">Request song</li>
-                <li data-action="go-to-artist" data-type-filter="track,album,video">Go to artist</li>
-                <li data-action="go-to-album" data-type-filter="track,video">Go to album</li>
-                <li data-action="copy-link">Copy link</li>
-                <li data-action="open-in-new-tab">Open in new tab</li>
-                <li data-action="open-in-harmony" data-type-filter="album">Open in Harmony</li>
-                <li data-action="track-info" data-type-filter="track,video">Track info</li>
-                <li data-action="open-original-url" data-type-filter="track,video">Open original URL</li>
-                <li data-action="download">Download</li>
-                <li class="separator"></li>
-                <li
-                    data-action="block-track"
-                    data-type-filter="track"
-                    data-label-block="Block track"
-                    data-label-unblock="Unblock track"
-                >
-                    Block track
-                </li>
-                <li
-                    data-action="block-album"
-                    data-type-filter="album,track"
-                    data-label-block="Block album"
-                    data-label-unblock="Unblock album"
-                >
-                    Block album
-                </li>
-                <li
-                    data-action="block-artist"
-                    data-type-filter="track,album,artist"
-                    data-label-block="Block artist"
-                    data-label-unblock="Unblock artist"
-                >
-                    Block artist
-                </li>
+                <li data-action="add-to-playlist">Add to playlist</li>
+                <li data-action="go-to-artist">Go to artist</li>
+                <li data-action="go-to-album">Go to album</li>
             </ul>
         </div>
 
@@ -810,6 +760,32 @@
                     </label>
                     <div id="stats-page-content"></div>
                 </div>
+
+                <div id="page-search" class="page">
+                    <h2 class="section-title" id="search-results-title">Search your library</h2>
+                    <div class="track-list" id="search-results-container"></div>
+                </div>
+
+                <div id="page-artist" class="page">
+                    <header class="detail-header">
+                        <div class="detail-header-info">
+                            <p class="stats-page-subtitle">Artist</p>
+                            <h1 class="title" id="entity-artist-title"></h1>
+                        </div>
+                    </header>
+                    <div class="track-list" id="artist-tracks-container"></div>
+                </div>
+
+                <div id="page-album" class="page">
+                    <header class="detail-header">
+                        <div class="detail-header-info">
+                            <p class="stats-page-subtitle">Album</p>
+                            <h1 class="title" id="entity-album-title"></h1>
+                        </div>
+                    </header>
+                    <div class="track-list" id="album-tracks-container"></div>
+                </div>
+
                 <section id="page-playlist" class="page">
                     <header class="detail-header">
                         <div class="detail-header-cover-container">
@@ -1094,6 +1070,17 @@
             </footer>
         </div>
 
+        <div id="queue-modal-overlay" role="dialog" aria-label="Queue">
+            <div id="queue-modal">
+                <div id="queue-modal-header">
+                    <h3>Queue</h3>
+                    <button type="button" id="clear-queue-btn">Clear</button>
+                    <button type="button" id="close-queue-btn" aria-label="Close">&times;</button>
+                </div>
+                <div id="queue-list"></div>
+            </div>
+        </div>
+
         <div id="fullscreen-cover-overlay" style="display: none">
             <div id="visualizer-container">
                 <canvas id="visualizer-canvas" aria-hidden="true"></canvas>
@@ -1110,6 +1097,36 @@
                                 <div id="fullscreen-track-artist"></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+                <div class="fullscreen-controls">
+                    <div id="fullscreen-next-track" style="display: none">
+                        <span class="label">Up next</span>
+                        <span class="value" id="fullscreen-next-track-value"></span>
+                    </div>
+                    <div class="fullscreen-progress-container">
+                        <span id="fs-current-time">0:00</span>
+                        <div id="fs-progress-bar" class="progress-bar">
+                            <div id="fs-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <span id="fs-total-time">0:00</span>
+                    </div>
+                    <div class="fullscreen-buttons">
+                        <button type="button" id="fs-shuffle-btn" title="Shuffle">
+                            <use svg="!lucide/shuffle.svg" size="24" />
+                        </button>
+                        <button type="button" id="fs-prev-btn" title="Previous">
+                            <use svg="!lucide/arrow-left-to-line.svg" size="24" />
+                        </button>
+                        <button type="button" id="fs-play-pause-btn" title="Play">
+                            <use svg="./images/play.svg" size="28" />
+                        </button>
+                        <button type="button" id="fs-next-btn" title="Next">
+                            <use svg="!lucide/arrow-right-to-line.svg" size="24" />
+                        </button>
+                        <button type="button" id="fs-repeat-btn" title="Repeat">
+                            <use svg="!lucide/repeat.svg" size="24" />
+                        </button>
                     </div>
                 </div>
             </div>

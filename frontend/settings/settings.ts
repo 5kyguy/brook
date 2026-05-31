@@ -14,6 +14,11 @@ export function initSettingsPage(
   initThemeSettings();
   initVisualSettings();
 
+  const commitEl = document.getElementById("settings-commit-info");
+  if (commitEl) {
+    commitEl.textContent = typeof __GIT_COMMIT__ !== "undefined" ? __GIT_COMMIT__ : "dev";
+  }
+
   const rootEl = document.getElementById("settings-music-root");
   const statusEl = document.getElementById("settings-music-root-status");
 

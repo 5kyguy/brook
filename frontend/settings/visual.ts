@@ -1,3 +1,5 @@
+import { reapplyTrackVisualEffects, syncVisualEffectToggles } from "./visual-effects";
+
 const STORAGE_PREFIX = "brook-";
 
 export interface VisualSettings {
@@ -48,6 +50,7 @@ export function applyVisualSettings(settings: VisualSettings): void {
   document.body.dataset.albumBackground = String(settings.albumBackground);
   document.body.dataset.dynamicColor = String(settings.dynamicColor);
   document.body.dataset.cdAlbumCover = String(settings.cdAlbumCover);
+  syncVisualEffectToggles();
 }
 
 export function initVisualSettings(): void {
@@ -60,6 +63,10 @@ export function initVisualSettings(): void {
     input.checked = settings[name];
     input.addEventListener("change", () => {
       saveVisualSetting(name, input.checked);
+      if (name === "albumBackground" || name === "dynamicColor") {
+        reapplyTrackVisualEffects();
+      }
+      syncVisualEffectToggles();
     });
   };
 
