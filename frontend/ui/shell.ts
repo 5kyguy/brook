@@ -6,11 +6,9 @@ const SIDEBAR_COLLAPSED_KEY = "brook-sidebar-collapsed";
 export function initMonochromeShell(): void {
   const hideIds = [
     "cast-btn",
-    "queue-btn",
     "download-current-btn",
     "now-playing-party-btn",
     "now-playing-mix-btn",
-    "toggle-lyrics-btn",
     "sleep-timer-btn",
     "sleep-timer-btn-desktop",
     "radio-loading-indicator",

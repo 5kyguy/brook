@@ -4,11 +4,17 @@ export type RepeatMode = "off" | "all" | "one";
 
 export interface PlaybackQueue {
   setQueue(tracks: Track[], currentId: string): void;
+  getTracks(): Track[];
   getCurrent(): Track | null;
   getNext(): Track | null;
   getPrev(): Track | null;
   advance(): Track | null;
   retreat(): Track | null;
+  insertNext(track: Track): void;
+  append(track: Track): void;
+  remove(trackId: string): void;
+  jumpTo(trackId: string): Track | null;
+  clear(): void;
   toggleShuffle(): boolean;
   cycleRepeat(): RepeatMode;
   isShuffled(): boolean;
@@ -32,15 +38,37 @@ export function createPlaybackQueue(): PlaybackQueue {
   let shuffle = false;
   let repeat: RepeatMode = "off";
 
+  const syncOriginalFromTracks = () => {
+    if (!shuffle) {
+      originalTracks = [...tracks];
+    }
+  };
+
+  const applyShuffle = (currentId: string | undefined) => {
+    tracks = shuffle ? shuffleKeepCurrent(originalTracks, currentId) : [...originalTracks];
+  };
+
   const syncIndex = (currentId: string) => {
     currentIndex = tracks.findIndex((t) => t.id === currentId);
+  };
+
+  const removeFromLists = (trackId: string) => {
+    originalTracks = originalTracks.filter((t) => t.id !== trackId);
+    tracks = tracks.filter((t) => t.id !== trackId);
+    if (currentIndex >= tracks.length) {
+      currentIndex = tracks.length - 1;
+    }
   };
 
   return {
     setQueue(newTracks, currentId) {
       originalTracks = [...newTracks];
-      tracks = shuffle ? shuffleKeepCurrent(originalTracks, currentId) : [...originalTracks];
+      applyShuffle(currentId);
       syncIndex(currentId);
+    },
+
+    getTracks() {
+      return [...tracks];
     },
 
     getCurrent() {
@@ -76,12 +104,77 @@ export function createPlaybackQueue(): PlaybackQueue {
       return prev;
     },
 
+    insertNext(track) {
+      const current = this.getCurrent();
+      if (!current) {
+        originalTracks = [track];
+        tracks = [track];
+        currentIndex = 0;
+        return;
+      }
+
+      removeFromLists(track.id);
+
+      const origIdx = originalTracks.findIndex((t) => t.id === current.id);
+      const insertAt = origIdx >= 0 ? origIdx + 1 : originalTracks.length;
+      originalTracks.splice(insertAt, 0, track);
+
+      applyShuffle(current.id);
+      syncIndex(current.id);
+    },
+
+    append(track) {
+      const current = this.getCurrent();
+      if (current?.id === track.id) return;
+
+      if (originalTracks.some((t) => t.id === track.id)) {
+        return;
+      }
+
+      originalTracks.push(track);
+      applyShuffle(current?.id);
+      if (current) syncIndex(current.id);
+    },
+
+    remove(trackId) {
+      const wasCurrent = tracks[currentIndex]?.id === trackId;
+      removeFromLists(trackId);
+      if (wasCurrent && tracks.length > 0) {
+        currentIndex = Math.min(currentIndex, tracks.length - 1);
+      } else if (tracks.length === 0) {
+        currentIndex = -1;
+      } else if (currentIndex >= tracks.length) {
+        currentIndex = tracks.length - 1;
+      }
+    },
+
+    jumpTo(trackId) {
+      const idx = tracks.findIndex((t) => t.id === trackId);
+      if (idx < 0) return null;
+      currentIndex = idx;
+      return tracks[currentIndex];
+    },
+
+    clear() {
+      const current = this.getCurrent();
+      if (current) {
+        originalTracks = [current];
+        tracks = [current];
+        currentIndex = 0;
+      } else {
+        originalTracks = [];
+        tracks = [];
+        currentIndex = -1;
+      }
+    },
+
     toggleShuffle() {
       shuffle = !shuffle;
       const current = this.getCurrent();
-      tracks = shuffle
-        ? shuffleKeepCurrent(originalTracks, current?.id)
-        : [...originalTracks];
+      if (!shuffle) {
+        originalTracks = [...tracks];
+      }
+      applyShuffle(current?.id);
       if (current) syncIndex(current.id);
       return shuffle;
     },

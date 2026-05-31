@@ -1,17 +1,33 @@
+import { syncVisualEffectToggles } from "../settings/visual-effects";
 import * as api from "../api";
+import type { PlaybackState } from "../types";
 import type { Track } from "../types";
-import { trackLabel, trackSubtitle } from "../ui/dom";
+import { formatDuration, trackLabel, trackSubtitle } from "../ui/dom";
+import type { RepeatMode } from "./queue";
+import { bindDragSlider } from "./slider";
 
 const SMOOTHING = 0.38;
 const IDLE_MS = 3200;
 const CHROME_REVEAL_Y = 96;
 
+export interface FullscreenHandlers {
+  onPrev?: () => void | Promise<void>;
+  onNext?: () => void | Promise<void>;
+  onPlayPause?: () => void | Promise<void>;
+  onToggleShuffle?: () => boolean | Promise<boolean>;
+  onCycleRepeat?: () => RepeatMode | Promise<RepeatMode>;
+  getNextLabel?: () => string | null;
+}
+
 export interface VisualizerController {
   setTrack(track: Track | null): void;
+  setProgress(positionSecs: number, durationSecs: number): void;
+  syncPlaybackState(status: PlaybackState["status"]): void;
+  syncQueueControls(shuffle: boolean, repeat: RepeatMode): void;
   close(): void;
 }
 
-export function initVisualizer(): VisualizerController {
+export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerController {
   const overlay = document.getElementById("fullscreen-cover-overlay");
   if (!overlay) {
     throw new Error("fullscreen-cover-overlay missing from index.html");
@@ -26,14 +42,70 @@ export function initVisualizer(): VisualizerController {
   const toggleUiBtn = document.getElementById("toggle-ui-btn");
   const barCover = document.querySelector<HTMLImageElement>(".now-playing-bar .cover");
 
+  const fsPlayBtn = document.getElementById("fs-play-pause-btn");
+  const fsShuffleBtn = document.getElementById("fs-shuffle-btn");
+  const fsPrevBtn = document.getElementById("fs-prev-btn");
+  const fsNextBtn = document.getElementById("fs-next-btn");
+  const fsRepeatBtn = document.getElementById("fs-repeat-btn");
+  const fsCurrentTime = document.getElementById("fs-current-time");
+  const fsTotalTime = document.getElementById("fs-total-time");
+  const fsProgressBar = document.getElementById("fs-progress-bar");
+  const fsProgressFill = document.getElementById("fs-progress-fill");
+  const upNextBlock = document.getElementById("fullscreen-next-track");
+  const upNextValue = document.getElementById("fullscreen-next-track-value");
+
   let currentTrack: Track | null = null;
   let visualizerMode = false;
   let targetBins: number[] = [];
   let displayBins: number[] = [];
   let animationFrame = 0;
   let idleTimer = 0;
+  let playbackStatus: PlaybackState["status"] = "stopped";
+  let durationSecs = 0;
+  let positionSecs = 0;
+  let fsScrubbing = false;
 
   const isOpen = () => overlay.style.display !== "none";
+
+  const syncUpNext = () => {
+    const label = handlers.getNextLabel?.() ?? null;
+    if (upNextBlock && upNextValue) {
+      if (label) {
+        upNextBlock.style.display = "";
+        upNextValue.textContent = label;
+      } else {
+        upNextBlock.style.display = "none";
+        upNextValue.textContent = "";
+      }
+    }
+  };
+
+  const updateFsPlayButton = () => {
+    if (!fsPlayBtn) return;
+    const playing = playbackStatus === "playing";
+    fsPlayBtn.innerHTML = playing
+      ? `<use svg="./images/pause.svg" size="28" />`
+      : `<use svg="./images/play.svg" size="28" />`;
+    fsPlayBtn.title = playing ? "Pause" : "Play";
+  };
+
+  const setFsProgressUi = (position: number, duration: number) => {
+    if (fsCurrentTime) fsCurrentTime.textContent = formatDuration(position);
+    if (fsTotalTime) fsTotalTime.textContent = formatDuration(duration);
+    if (fsProgressFill && duration > 0) {
+      fsProgressFill.style.width = `${(position / duration) * 100}%`;
+    } else if (fsProgressFill) {
+      fsProgressFill.style.width = "0%";
+    }
+  };
+
+  const syncFsQueueControls = (shuffle: boolean, repeat: RepeatMode) => {
+    fsShuffleBtn?.classList.toggle("active", shuffle);
+    if (fsRepeatBtn) {
+      fsRepeatBtn.classList.toggle("active", repeat !== "off");
+      fsRepeatBtn.classList.toggle("repeat-one", repeat === "one");
+    }
+  };
 
   const resizeCanvas = () => {
     if (!canvas) return;
@@ -91,7 +163,6 @@ export function initVisualizer(): VisualizerController {
       ctx.fill();
     };
 
-    // Mirror on both axes: bass at center, treble at edges, bars grow up and down.
     for (let i = 0; i < binCount; i += 1) {
       const value = displayBins[i] ?? 0;
       const leftX = centerX - gap / 2 - barWidth - i * slotWidth;
@@ -140,6 +211,7 @@ export function initVisualizer(): VisualizerController {
     if (coverImage) {
       coverImage.src = barCover?.src ?? "./assets/appicon.png";
     }
+    syncUpNext();
   };
 
   const setUiHidden = (hidden: boolean) => {
@@ -191,12 +263,15 @@ export function initVisualizer(): VisualizerController {
   const open = () => {
     if (!currentTrack) return;
     syncTrackUi(currentTrack);
+    syncVisualEffectToggles();
     overlay.style.display = "flex";
     overlay.classList.remove("controls-idle");
     resizeCanvas();
     resetIdleTimer();
+    updateFsPlayButton();
+    setFsProgressUi(positionSecs, durationSecs);
 
-    setVisualizerMode(true);
+    setVisualizerMode(false);
   };
 
   const close = () => {
@@ -238,6 +313,54 @@ export function initVisualizer(): VisualizerController {
     }
   });
 
+  fsPlayBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void handlers.onPlayPause?.();
+  });
+
+  fsPrevBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void handlers.onPrev?.();
+  });
+
+  fsNextBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void handlers.onNext?.();
+  });
+
+  fsShuffleBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void Promise.resolve(handlers.onToggleShuffle?.()).then((shuffle) => {
+      if (typeof shuffle === "boolean") fsShuffleBtn?.classList.toggle("active", shuffle);
+    });
+  });
+
+  fsRepeatBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void Promise.resolve(handlers.onCycleRepeat?.()).then((repeat) => {
+      if (repeat) syncFsQueueControls(fsShuffleBtn?.classList.contains("active") ?? false, repeat);
+    });
+  });
+
+  if (fsProgressBar) {
+    bindDragSlider(fsProgressBar, {
+      getMax: () => durationSecs,
+      canInteract: () => durationSecs > 0,
+      onDragStart: () => {
+        fsScrubbing = true;
+      },
+      onDragEnd: () => {
+        fsScrubbing = false;
+      },
+      onPreview: (value) => {
+        setFsProgressUi(value, durationSecs);
+      },
+      onSeek: (value) => {
+        void api.playback.seek(value);
+      },
+    });
+  }
+
   overlay.addEventListener("mousemove", (event) => {
     revealChrome(event.clientY);
     resetIdleTimer();
@@ -269,6 +392,16 @@ export function initVisualizer(): VisualizerController {
       currentTrack = track;
       if (isOpen()) syncTrackUi(track);
     },
+    setProgress(position, duration) {
+      durationSecs = duration;
+      if (!fsScrubbing) positionSecs = position;
+      if (!fsScrubbing && isOpen()) setFsProgressUi(position, duration);
+    },
+    syncPlaybackState(status) {
+      playbackStatus = status;
+      updateFsPlayButton();
+    },
+    syncQueueControls: syncFsQueueControls,
     close,
   };
 }

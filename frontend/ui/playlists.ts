@@ -2,6 +2,7 @@ import * as api from "../api";
 import type { Playlist, PlaylistKind, Track } from "../types";
 import { SVG_LIST_MUSIC } from "./icons";
 import { renderTrackList } from "./track-list";
+import { wireInPageSearch } from "./search";
 import type { Router } from "./router";
 
 function escapeHtml(text: string): string {
@@ -56,6 +57,31 @@ export function initPlaylists(
   let playlists: Playlist[] = [];
   let currentPlaylistId: string | null = null;
   let currentPlaylistKind: PlaylistKind = "user";
+  let currentPlaylistTracks: Track[] = [];
+
+  wireInPageSearch(
+    "track-list-search-input",
+    () => currentPlaylistTracks,
+    (filtered) => {
+      renderTrackList(tracksList, filtered, {
+        onPlay,
+        onToggleFavorite,
+        onAddToPlaylist,
+        playingTrackId: getPlayingTrackId(),
+        showInlineLike: true,
+        showRemoveAction: currentPlaylistKind === "user",
+        onRemoveFromPlaylist: currentPlaylistId
+          ? (track) => {
+              void (async () => {
+                await api.playlists.removeFromPlaylist(currentPlaylistId!, track.id);
+                await openPlaylist(currentPlaylistId!);
+              })();
+            }
+          : undefined,
+        emptyMessage: "This playlist is empty.",
+      });
+    },
+  );
 
   if (playPlaylistBtn) playPlaylistBtn.style.display = "none";
   document.getElementById("shuffle-playlist-btn")?.style.setProperty("display", "none");
@@ -109,6 +135,7 @@ export function initPlaylists(
     currentPlaylistKind = playlist?.kind ?? "user";
     const isChart = currentPlaylistKind !== "user";
     const tracks = await api.playlists.getPlaylistTracks(id);
+    currentPlaylistTracks = tracks;
     titleEl.textContent = playlist?.name ?? "Playlist";
     metaEl.textContent = isChart
       ? `${tracks.length} tracks · auto-updated`

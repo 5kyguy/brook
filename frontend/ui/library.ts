@@ -2,6 +2,7 @@ import * as api from "../api";
 import type { Track } from "../types";
 import { buildFacets, filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
 import { renderTrackList } from "./track-list";
+import { wireInPageSearch } from "./search";
 
 export interface LibraryPage {
   refresh(): Promise<void>;
@@ -68,6 +69,17 @@ export function initLibraryPage(
       void refreshLocalOnly();
     });
   }
+
+  wireInPageSearch(
+    "library-liked-tracks-search",
+    () => likedTracks,
+    (filtered) => {
+      renderTrackList(likedContainer, filtered, {
+        ...listOptions(filtered),
+        emptyMessage: "No liked tracks matched your search.",
+      });
+    },
+  );
 
   async function refreshLocalOnly() {
     const query = filterBar ? filterStateToQuery(filterBar.getState()) : undefined;

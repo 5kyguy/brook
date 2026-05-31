@@ -32,7 +32,7 @@ export function initSettingsPage(
         <div class="setting-item">
           <div class="info">
             <span class="label">Music folder</span>
-            <span class="description">Where Brook scans for audio files. Changing this clears your library scan, stats, and likes.</span>
+            <span class="description">Where Brook scans for audio files. Changing this clears scanned tracks, play history, stats, likes, and playlist entries tied to those tracks. Your playlist names are kept.</span>
           </div>
           <div class="settings-music-folder-actions">
             <button type="button" id="settings-choose-music-folder-btn" class="btn-secondary">Choose folder…</button>
