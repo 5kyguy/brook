@@ -4,7 +4,10 @@ use rusqlite::params;
 use super::Database;
 use crate::models::PlaylistKind;
 
-pub const CHART_TRACK_LIMIT: usize = 100;
+const LIMIT_WEEKLY: usize = 25;
+const LIMIT_MONTHLY: usize = 50;
+const LIMIT_QUARTERLY: usize = 100;
+const LIMIT_YEARLY: usize = 100;
 const MS_DAY: i64 = 86_400_000;
 const MS_WEEK: i64 = 7 * MS_DAY;
 const MS_MONTH: i64 = 30 * MS_DAY;
@@ -63,12 +66,12 @@ impl Database {
 
         self.ensure_chart_playlist(
             ID_WEEKLY_TOP,
-            "Weekly Top 100",
+            "Weekly Top 25",
             PlaylistKind::WeeklyTop,
         )?;
         self.ensure_chart_playlist(
             ID_MONTHLY_TOP,
-            "Monthly Top 100",
+            "Monthly Top 50",
             PlaylistKind::MonthlyTop,
         )?;
         self.ensure_chart_playlist(
@@ -82,10 +85,10 @@ impl Database {
             PlaylistKind::YearlyTop,
         )?;
 
-        self.replace_chart_tracks(ID_WEEKLY_TOP, week_start, now)?;
-        self.replace_chart_tracks(ID_MONTHLY_TOP, month_start, now)?;
-        self.replace_chart_tracks(ID_QUARTERLY_TOP, q_start, q_end)?;
-        self.replace_chart_tracks(ID_YEARLY_TOP, y_start, y_end)?;
+        self.replace_chart_tracks(ID_WEEKLY_TOP, week_start, now, LIMIT_WEEKLY)?;
+        self.replace_chart_tracks(ID_MONTHLY_TOP, month_start, now, LIMIT_MONTHLY)?;
+        self.replace_chart_tracks(ID_QUARTERLY_TOP, q_start, q_end, LIMIT_QUARTERLY)?;
+        self.replace_chart_tracks(ID_YEARLY_TOP, y_start, y_end, LIMIT_YEARLY)?;
 
         self.set_setting(
             SETTINGS_CHARTS_DAY,
@@ -136,8 +139,9 @@ impl Database {
         playlist_id: &str,
         start_ms: i64,
         end_ms: i64,
+        limit: usize,
     ) -> Result<(), String> {
-        let track_ids = self.top_track_ids_between(start_ms, end_ms, CHART_TRACK_LIMIT)?;
+        let track_ids = self.top_track_ids_between(start_ms, end_ms, limit)?;
         self.conn
             .execute(
                 "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
