@@ -2205,7 +2205,7 @@ input[type='search']::-webkit-search-cancel-button {
 
 .track-list-header {
     display: grid;
-    grid-template-columns: 40px 1fr 80px 48px;
+    grid-template-columns: 1fr 80px 48px;
     align-items: center;
     gap: var(--spacing-md);
     padding: var(--spacing-sm);
@@ -2226,7 +2226,7 @@ input[type='search']::-webkit-search-cancel-button {
 /* Track Item Standardization */
 .track-item {
     display: grid;
-    grid-template-columns: 40px 1fr 60px auto;
+    grid-template-columns: 1fr 60px auto;
     gap: var(--spacing-md);
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--radius-sm);
@@ -2240,7 +2240,7 @@ input[type='search']::-webkit-search-cancel-button {
 }
 
 .track-item.no-duration {
-    grid-template-columns: 40px 1fr auto;
+    grid-template-columns: 1fr auto;
 }
 
 .track-item.no-duration .track-item-duration {
@@ -2248,7 +2248,7 @@ input[type='search']::-webkit-search-cancel-button {
 }
 
 .track-item.no-duration.track-item--inline-like {
-    grid-template-columns: 40px 1fr auto auto;
+    grid-template-columns: 1fr auto auto;
 }
 
 .track-item:hover {
@@ -2426,7 +2426,7 @@ body.multi-select-mode .track-item:hover {
 }
 
 .track-item--inline-like {
-    grid-template-columns: 40px 1fr auto 3.25rem auto;
+    grid-template-columns: 1fr auto 3.25rem auto;
 }
 
 .track-item-inline-like {
@@ -5610,7 +5610,7 @@ input:checked + .slider::before {
 #playlist-detail-tracklist .track-list-header,
 #mix-detail-tracklist .track-list-header {
     display: grid;
-    grid-template-columns: 40px 1fr 3.25rem 80px auto;
+    grid-template-columns: 1fr 3.25rem 80px auto;
     align-items: center;
     gap: var(--spacing-md);
     padding: var(--spacing-sm);
@@ -7291,13 +7291,13 @@ img[src=''] {
     }
 
     .track-item {
-        grid-template-columns: 36px 1fr auto auto;
+        grid-template-columns: 1fr auto auto;
         gap: var(--spacing-sm);
         padding: var(--spacing-sm);
     }
 
     .track-item.track-item--inline-like {
-        grid-template-columns: 36px minmax(0, 1fr) auto minmax(2.5rem, auto) auto;
+        grid-template-columns: minmax(0, 1fr) auto minmax(2.5rem, auto) auto;
     }
 
     .track-item-info {
@@ -7562,13 +7562,13 @@ img[src=''] {
     }
 
     .track-item {
-        grid-template-columns: 32px 1fr 40px auto;
+        grid-template-columns: 1fr 40px auto;
         gap: 0.375rem;
         padding: var(--spacing-xs);
     }
 
     .track-item.track-item--inline-like {
-        grid-template-columns: 32px minmax(0, 1fr) auto minmax(2.25rem, auto) auto;
+        grid-template-columns: minmax(0, 1fr) auto minmax(2.25rem, auto) auto;
     }
 
     .track-number {
@@ -7744,11 +7744,11 @@ img[src=''] {
     }
 
     .track-item {
-        grid-template-columns: 32px 1fr 32px auto;
+        grid-template-columns: 1fr 32px auto;
     }
 
     .track-item.track-item--inline-like {
-        grid-template-columns: 32px minmax(0, 1fr) auto minmax(2.25rem, auto) auto;
+        grid-template-columns: minmax(0, 1fr) auto minmax(2.25rem, auto) auto;
     }
 
     .player-controls .buttons button {

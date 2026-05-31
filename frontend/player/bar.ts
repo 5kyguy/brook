@@ -1,5 +1,6 @@
 import type { PlaybackState, Track } from "../types";
 import { formatDuration, trackLabel, trackSubtitle } from "../ui/dom";
+import { setCoverImage } from "../ui/cover-art";
 import { SVG_HEART, SVG_HEART_FILLED, SVG_PAUSE, SVG_PLAY } from "../ui/icons";
 import { setVolumeButtonMuted } from "../ui/shell";
 import * as api from "../api";
@@ -202,7 +203,7 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
         albumEl.textContent = "";
         artistEl.textContent = PLACEHOLDER_ARTIST;
         if (coverEl) {
-          coverEl.src = "./assets/appicon.png";
+          setCoverImage(coverEl, null);
           coverEl.style.cursor = "default";
         }
         return;
@@ -211,7 +212,7 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
       albumEl.textContent = track.album ?? "";
       artistEl.textContent = track.artist ?? trackSubtitle(track);
       if (coverEl) {
-        coverEl.src = "./assets/appicon.png";
+        setCoverImage(coverEl, track.id);
         coverEl.style.cursor = "pointer";
         coverEl.title = "Open fullscreen player";
       }

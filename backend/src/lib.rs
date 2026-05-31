@@ -254,6 +254,7 @@ pub mod lyrics {
     }
 }
 
+pub mod cover_art;
 pub mod db;
 pub mod audio;
 pub mod commands;
@@ -276,9 +277,11 @@ pub fn run() {
             std::fs::create_dir_all(&app_data).map_err(|e| e.to_string())?;
 
             let db_path = app_data.join("brook.db");
+            let covers_dir = app_data.join("covers");
+            std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
             let mut db = db::Database::open(&db_path)?;
             db.refresh_chart_playlists_if_due()?;
-            app.manage(AppState::new(db, app.handle().clone()));
+            app.manage(AppState::new(db, app.handle().clone(), covers_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -289,6 +292,7 @@ pub fn run() {
             commands::library::scan_library,
             commands::library::get_tracks,
             commands::library::get_track,
+            commands::library::get_album_art,
             commands::lyrics::read_lyrics,
             commands::favorites::toggle_favorite,
             commands::favorites::get_favorites,

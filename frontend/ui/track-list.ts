@@ -1,5 +1,6 @@
 import type { Track } from "../types";
-import { formatDuration, trackLabel, trackSubtitle } from "./dom";
+import { applyTrackCovers, COVER_PLACEHOLDER } from "./cover-art";
+import { formatDuration, trackArtist, trackLabel } from "./dom";
 import { SVG_HEART, SVG_HEART_FILLED, SVG_MENU } from "./icons";
 
 function escapeHtml(text: string): string {
@@ -30,7 +31,6 @@ export interface TrackListOptions extends TrackListActions {
 
 const TRACKLIST_HEADER_HTML = `
   <div class="track-list-header">
-    <span style="width: 40px; text-align: center;">#</span>
     <span>Title</span>
     <span class="track-list-header-spacer" aria-hidden="true"></span>
     <span class="duration-header">Duration</span>
@@ -40,13 +40,12 @@ const TRACKLIST_HEADER_HTML = `
 
 export function createTrackItemHTML(
   track: Track,
-  index: number,
   options: TrackListOptions,
 ): string {
   const isPlaying = options.playingTrackId === track.id;
   const showLike = options.showInlineLike !== false;
   const title = escapeHtml(trackLabel(track));
-  const artist = escapeHtml(trackSubtitle(track));
+  const artist = escapeHtml(trackArtist(track));
   const duration =
     track.durationSecs != null ? formatDuration(track.durationSecs) : "--:--";
 
@@ -67,8 +66,14 @@ export function createTrackItemHTML(
     <div class="track-item${isPlaying ? " playing" : ""}${showLike ? " track-item--inline-like" : ""}"
          data-track-id="${escapeHtml(track.id)}"
          data-type="track">
-      <div class="track-number">${index + 1}</div>
       <div class="track-item-info">
+        <img
+          class="track-item-cover"
+          data-track-id="${escapeHtml(track.id)}"
+          src="${COVER_PLACEHOLDER}"
+          alt=""
+          loading="lazy"
+        />
         <div class="track-item-details">
           <div class="title">${title}</div>
           <div class="artist">${artist}</div>
@@ -96,7 +101,9 @@ export function renderTrackList(
 
   container.innerHTML =
     TRACKLIST_HEADER_HTML +
-    tracks.map((track, index) => createTrackItemHTML(track, index, options)).join("");
+    tracks.map((track) => createTrackItemHTML(track, options)).join("");
+
+  applyTrackCovers(container);
 
   container.querySelectorAll<HTMLElement>(".track-item").forEach((row) => {
     const trackId = row.dataset.trackId;

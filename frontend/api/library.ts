@@ -3,6 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScanResult, Track, TrackFilter } from "../types";
 import { requireTauri } from "./client";
 
+export interface AlbumArtPayload {
+  data: number[];
+  mimeType: string;
+}
+
 export async function getMusicRoot(): Promise<string> {
   requireTauri();
   return invoke<string>("get_music_root");
@@ -36,6 +41,11 @@ export async function getTracks(filter?: TrackFilter): Promise<Track[]> {
 export async function getTrack(id: string): Promise<Track> {
   requireTauri();
   return invoke<Track>("get_track", { id });
+}
+
+export async function getAlbumArt(id: string): Promise<AlbumArtPayload | null> {
+  requireTauri();
+  return invoke<AlbumArtPayload | null>("get_album_art", { id });
 }
 
 export async function getFavorites(): Promise<Track[]> {

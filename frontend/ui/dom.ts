@@ -31,6 +31,10 @@ export function trackLabel(track: { title: string | null; artist: string | null;
   return track.title?.trim() || track.artist?.trim() || track.id;
 }
 
+export function trackArtist(track: { artist: string | null }): string {
+  return track.artist?.trim() || "Unknown artist";
+}
+
 export function trackSubtitle(track: { artist: string | null; album: string | null }): string {
   const parts = [track.artist, track.album].filter(Boolean);
   return parts.join(" · ") || "Unknown artist";

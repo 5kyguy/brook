@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Emitter, State};
 
+use crate::cover_art::{self, AlbumArtPayload};
 use crate::metadata;
 use crate::models::{ScanCompletePayload, ScanProgressPayload, ScanResult, Track, TrackFilter};
 use crate::paths;
@@ -117,4 +118,17 @@ pub fn get_tracks(
 pub fn get_track(state: State<'_, AppState>, id: String) -> Result<Track, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_track(&id)
+}
+
+#[tauri::command]
+pub fn get_album_art(state: State<'_, AppState>, id: String) -> Result<Option<AlbumArtPayload>, String> {
+    let row = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.get_track_row(&id)?
+    };
+    cover_art::get_cover(
+        &state.covers_dir,
+        Path::new(&row.absolute_path),
+        &id,
+    )
 }
