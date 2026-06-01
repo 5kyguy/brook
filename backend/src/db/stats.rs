@@ -2,7 +2,8 @@ use rusqlite::params;
 
 use super::Database;
 use crate::models::{
-    RankedAlbum, RankedArtist, RankedTrack, RankedYear, StatsSummary, Track, YearlyWrap,
+    RankedAlbum, RankedArtist, RankedGenre, RankedTrack, RankedYear, StatsSummary, Track,
+    YearlyWrap,
 };
 
 const MIN_LISTEN_SECS: f64 = 15.0;
@@ -79,6 +80,7 @@ impl Database {
         let top_tracks = self.query_top_tracks(None, None, 20)?;
         let top_artist = self.query_top_artist(None, None)?;
         let top_album = self.query_top_album(None, None)?;
+        let top_genre = self.query_top_genre(None, None)?;
         let top_year = self.query_top_year(None, None)?;
 
         Ok(StatsSummary {
@@ -89,8 +91,26 @@ impl Database {
             top_tracks,
             top_artist,
             top_album,
+            top_genre,
             top_year,
         })
+    }
+
+    pub fn get_stats_years(&self) -> Result<Vec<i32>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT CAST(strftime('%Y', played_at / 1000, 'unixepoch', 'localtime') AS INTEGER)
+                 FROM play_history
+                 WHERE played_at > 0
+                 ORDER BY 1 DESC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, i32>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn get_yearly_wrap(&self, year: i32) -> Result<YearlyWrap, String> {
@@ -100,6 +120,8 @@ impl Database {
         let top_tracks = self.query_top_tracks(Some(start), Some(end), 25)?;
         let top_artists = self.query_top_artists(Some(start), Some(end), 10)?;
         let top_albums = self.query_top_albums(Some(start), Some(end), 10)?;
+        let top_genre = self.query_top_genre(Some(start), Some(end))?;
+        let top_year = self.query_top_year(Some(start), Some(end))?;
 
         Ok(YearlyWrap {
             year,
@@ -110,6 +132,8 @@ impl Database {
             top_tracks,
             top_artists,
             top_albums,
+            top_genre,
+            top_year,
         })
     }
 
@@ -118,7 +142,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                        t.title, t.artist, t.album, t.year, t.duration_secs,
+                        t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                         t.has_lrc, t.lrc_path, t.embedded_lyrics
                  FROM play_history ph
                  INNER JOIN tracks t ON t.id = ph.track_id
@@ -227,14 +251,15 @@ impl Database {
                 extension: row.get(6).map_err(|e| e.to_string())?,
                 file_size: row.get::<_, i64>(7).map_err(|e| e.to_string())? as u64,
                 modified_ms: row.get::<_, i64>(8).map_err(|e| e.to_string())? as i128,
-                title: row.get(9).map_err(|e| e.to_string())?,
-                artist: row.get(10).map_err(|e| e.to_string())?,
-                album: row.get(11).map_err(|e| e.to_string())?,
-                year: row.get(12).map_err(|e| e.to_string())?,
-                duration_secs: row.get(13).map_err(|e| e.to_string())?,
-                has_lrc: row.get::<_, i32>(14).map_err(|e| e.to_string())? != 0,
-                lrc_path: row.get(15).map_err(|e| e.to_string())?,
-                embedded_lyrics: row.get(16).map_err(|e| e.to_string())?,
+                title: row.get::<_, Option<String>>(9).map_err(|e| e.to_string())?,
+                artist: row.get::<_, Option<String>>(10).map_err(|e| e.to_string())?,
+                album: row.get::<_, Option<String>>(11).map_err(|e| e.to_string())?,
+                genre: row.get::<_, Option<String>>(12).map_err(|e| e.to_string())?,
+                year: row.get::<_, Option<i32>>(13).map_err(|e| e.to_string())?,
+                duration_secs: row.get::<_, Option<f64>>(14).map_err(|e| e.to_string())?,
+                has_lrc: row.get::<_, i32>(15).map_err(|e| e.to_string())? != 0,
+                lrc_path: row.get::<_, Option<String>>(16).map_err(|e| e.to_string())?,
+                embedded_lyrics: row.get::<_, Option<String>>(17).map_err(|e| e.to_string())?,
             };
             let is_favorite = self.is_favorite(&track_row.id)?;
             out.push(RankedTrack {
@@ -342,6 +367,45 @@ impl Database {
             .map_err(|e| e.to_string())
     }
 
+    fn query_top_genre(
+        &self,
+        start_ms: Option<i64>,
+        end_ms: Option<i64>,
+    ) -> Result<Option<RankedGenre>, String> {
+        let sql = if start_ms.is_some() {
+            "SELECT COALESCE(t.genre, 'Unknown Genre') AS name,
+                    COUNT(*) AS play_count,
+                    COALESCE(SUM(ph.duration_listened), 0) AS total_secs
+             FROM play_history ph
+             INNER JOIN tracks t ON t.id = ph.track_id
+             WHERE ph.played_at >= ?1 AND ph.played_at < ?2 AND t.genre IS NOT NULL AND t.genre != ''
+             GROUP BY name
+             ORDER BY play_count DESC, total_secs DESC
+             LIMIT 1"
+        } else {
+            "SELECT COALESCE(t.genre, 'Unknown Genre') AS name,
+                    COUNT(*) AS play_count,
+                    COALESCE(SUM(ph.duration_listened), 0) AS total_secs
+             FROM play_history ph
+             INNER JOIN tracks t ON t.id = ph.track_id
+             WHERE t.genre IS NOT NULL AND t.genre != ''
+             GROUP BY name
+             ORDER BY play_count DESC, total_secs DESC
+             LIMIT 1"
+        };
+        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
+        let result = if let (Some(s), Some(e)) = (start_ms, end_ms) {
+            stmt.query_row(params![s, e], map_ranked_genre)
+        } else {
+            stmt.query_row([], map_ranked_genre)
+        };
+        match result {
+            Ok(row) => Ok(Some(row)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     fn query_top_year(
         &self,
         start_ms: Option<i64>,
@@ -410,6 +474,14 @@ fn map_ranked_album(row: &rusqlite::Row<'_>) -> rusqlite::Result<RankedAlbum> {
     })
 }
 
+fn map_ranked_genre(row: &rusqlite::Row<'_>) -> rusqlite::Result<RankedGenre> {
+    Ok(RankedGenre {
+        name: row.get(0)?,
+        play_count: row.get::<_, i64>(1)? as u64,
+        total_secs: row.get(2)?,
+    })
+}
+
 fn is_full_listen(listened: f64, duration: f64) -> bool {
     if duration <= 0.0 {
         return listened >= MIN_LISTEN_SECS;
@@ -431,7 +503,7 @@ fn ranked_tracks_sql(start_ms: Option<i64>, end_ms: Option<i64>) -> (String, Opt
         (
             "SELECT ls.track_id, ls.play_count, ls.total_secs,
                     t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                    t.title, t.artist, t.album, t.year, t.duration_secs,
+                    t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                     t.has_lrc, t.lrc_path, t.embedded_lyrics
              FROM (
                  SELECT ph.track_id,
@@ -453,7 +525,7 @@ fn ranked_tracks_sql(start_ms: Option<i64>, end_ms: Option<i64>) -> (String, Opt
         (
             "SELECT ls.track_id, ls.play_count, ls.total_secs,
                     t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                    t.title, t.artist, t.album, t.year, t.duration_secs,
+                    t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                     t.has_lrc, t.lrc_path, t.embedded_lyrics
              FROM (
                  SELECT track_id, play_count, total_secs

@@ -18,4 +18,6 @@ pub use playlists::{
     add_to_playlist, create_playlist, delete_playlist, get_playlist_tracks, get_playlists,
     remove_from_playlist, update_playlist,
 };
-pub use stats::{clear_play_history, get_recent_tracks, get_stats, get_yearly_wrap};
+pub use stats::{
+    clear_play_history, get_recent_tracks, get_stats, get_stats_years, get_yearly_wrap,
+};

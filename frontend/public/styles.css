@@ -11697,20 +11697,38 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     margin-bottom: 0.75rem;
 }
 
-.stats-year-picker {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
+#page-stats .search-tabs {
+    margin: 0 0 1.25rem;
+}
+
+.stats-most-played-panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.stats-most-played-pane {
+    min-width: 0;
+}
+
+.stats-pane-title {
     font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--muted-foreground);
+    margin: 0 0 0.75rem;
 }
 
-.stats-year-picker--header {
-    margin: -0.25rem 0 1rem;
+.stats-year-section .search-tabs {
+    margin-top: 0.5rem;
 }
 
-.stats-year-picker select {
-    min-width: 6rem;
+@media (max-width: 768px) {
+    .stats-most-played-panes {
+        grid-template-columns: 1fr;
+    }
 }
 
 .stats-wrap-grid {

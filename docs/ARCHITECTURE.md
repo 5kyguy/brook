@@ -324,6 +324,7 @@ CREATE TABLE app_settings (
 | `get_playlists` | — | `Playlist[]` | |
 | `get_playlist_tracks` | `playlist_id: string` | `Track[]` | Ordered |
 | `get_stats` | — | `StatsSummary` | All-time aggregates |
+| `get_stats_years` | — | `number[]` | Calendar years with play history (descending) |
 | `get_yearly_wrap` | `year: i32` | `YearlyWrap` | Calendar-year stats |
 | `get_recent_tracks` | `limit?: number` | `Track[]` | Recent play history (default 50) |
 | `clear_play_history` | — | `()` | Wipe play history and listening stats |

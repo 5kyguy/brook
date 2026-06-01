@@ -137,6 +137,7 @@ pub mod metadata {
         pub title: Option<String>,
         pub artist: Option<String>,
         pub album: Option<String>,
+        pub genre: Option<String>,
         pub year: Option<i32>,
         pub duration_secs: Option<f64>,
         pub embedded_lyrics: Option<String>,
@@ -166,6 +167,7 @@ pub mod metadata {
             meta.title = tag.title().map(|s| s.to_string());
             meta.artist = tag.artist().map(|s| s.to_string());
             meta.album = tag.album().map(|s| s.to_string());
+            meta.genre = tag.genre().map(|s| s.to_string());
             meta.year = tag.year().map(|y| y as i32);
             meta.embedded_lyrics = extract_embedded_lyrics(tag);
         }
@@ -312,6 +314,7 @@ pub fn run() {
             commands::playback::set_volume,
             commands::playback::set_visualizer_active,
             commands::stats::get_stats,
+            commands::stats::get_stats_years,
             commands::stats::get_yearly_wrap,
             commands::stats::get_recent_tracks,
             commands::stats::clear_play_history,

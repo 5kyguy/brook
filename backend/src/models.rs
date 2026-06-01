@@ -125,6 +125,14 @@ pub struct RankedAlbum {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RankedGenre {
+    pub name: String,
+    pub play_count: u64,
+    pub total_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RankedYear {
     pub year: i32,
     pub play_count: u64,
@@ -141,6 +149,7 @@ pub struct StatsSummary {
     pub top_tracks: Vec<RankedTrack>,
     pub top_artist: Option<RankedArtist>,
     pub top_album: Option<RankedAlbum>,
+    pub top_genre: Option<RankedGenre>,
     pub top_year: Option<RankedYear>,
 }
 
@@ -155,6 +164,8 @@ pub struct YearlyWrap {
     pub top_tracks: Vec<RankedTrack>,
     pub top_artists: Vec<RankedArtist>,
     pub top_albums: Vec<RankedAlbum>,
+    pub top_genre: Option<RankedGenre>,
+    pub top_year: Option<RankedYear>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]

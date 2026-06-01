@@ -111,6 +111,12 @@ export interface RankedAlbum {
   totalSecs: number;
 }
 
+export interface RankedGenre {
+  name: string;
+  playCount: number;
+  totalSecs: number;
+}
+
 export interface RankedYear {
   year: number;
   playCount: number;
@@ -125,6 +131,7 @@ export interface StatsSummary {
   topTracks: RankedTrack[];
   topArtist: RankedArtist | null;
   topAlbum: RankedAlbum | null;
+  topGenre: RankedGenre | null;
   topYear: RankedYear | null;
 }
 
@@ -137,6 +144,8 @@ export interface YearlyWrap {
   topTracks: RankedTrack[];
   topArtists: RankedArtist[];
   topAlbums: RankedAlbum[];
+  topGenre: RankedGenre | null;
+  topYear: RankedYear | null;
 }
 
 export interface LibraryFacets {

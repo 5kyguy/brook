@@ -8,6 +8,11 @@ export async function getStats(): Promise<StatsSummary> {
   return invoke<StatsSummary>("get_stats");
 }
 
+export async function getStatsYears(): Promise<number[]> {
+  requireTauri();
+  return invoke<number[]>("get_stats_years");
+}
+
 export async function getYearlyWrap(year: number): Promise<YearlyWrap> {
   requireTauri();
   return invoke<YearlyWrap>("get_yearly_wrap", { year });

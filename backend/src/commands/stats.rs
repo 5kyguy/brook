@@ -10,6 +10,12 @@ pub fn get_stats(state: State<'_, AppState>) -> Result<StatsSummary, String> {
 }
 
 #[tauri::command]
+pub fn get_stats_years(state: State<'_, AppState>) -> Result<Vec<i32>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_stats_years()
+}
+
+#[tauri::command]
 pub fn get_yearly_wrap(state: State<'_, AppState>, year: i32) -> Result<YearlyWrap, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_yearly_wrap(year)

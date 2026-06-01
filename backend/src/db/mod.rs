@@ -22,6 +22,7 @@ pub struct TrackRow {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub genre: Option<String>,
     pub year: Option<i32>,
     pub duration_secs: Option<f64>,
     pub has_lrc: bool,
@@ -46,7 +47,33 @@ impl Database {
     fn migrate(&self) -> Result<(), String> {
         let sql = include_str!("../../migrations/001_init.sql");
         self.conn.execute_batch(sql).map_err(|e| e.to_string())?;
-        self.migrate_stats_charts()
+        self.migrate_stats_charts()?;
+        self.migrate_track_genre()
+    }
+
+    fn migrate_track_genre(&self) -> Result<(), String> {
+        if !self.tracks_has_genre_column()? {
+            self.conn
+                .execute("ALTER TABLE tracks ADD COLUMN genre TEXT", [])
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn tracks_has_genre_column(&self) -> Result<bool, String> {
+        let mut stmt = self
+            .conn
+            .prepare("PRAGMA table_info(tracks)")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| e.to_string())?;
+        for name in rows.flatten() {
+            if name == "genre" {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     fn migrate_stats_charts(&self) -> Result<(), String> {
@@ -175,9 +202,9 @@ impl Database {
             .execute(
                 "INSERT INTO tracks (
                     id, absolute_path, extension, file_size, modified_ms,
-                    title, artist, album, year, duration_secs,
+                    title, artist, album, genre, year, duration_secs,
                     has_lrc, lrc_path, embedded_lyrics, scanned_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
                 ON CONFLICT(id) DO UPDATE SET
                     absolute_path = excluded.absolute_path,
                     extension = excluded.extension,
@@ -186,6 +213,7 @@ impl Database {
                     title = excluded.title,
                     artist = excluded.artist,
                     album = excluded.album,
+                    genre = excluded.genre,
                     year = excluded.year,
                     duration_secs = excluded.duration_secs,
                     has_lrc = excluded.has_lrc,
@@ -201,6 +229,7 @@ impl Database {
                     meta.title,
                     meta.artist,
                     meta.album,
+                    meta.genre,
                     meta.year,
                     meta.duration_secs,
                     i32::from(file.has_lrc),
@@ -218,7 +247,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT id, id, absolute_path, extension, file_size, modified_ms,
-                        title, artist, album, year, duration_secs,
+                        title, artist, album, genre, year, duration_secs,
                         has_lrc, lrc_path, embedded_lyrics
                  FROM tracks WHERE id = ?1",
             )
@@ -238,7 +267,7 @@ impl Database {
         let filter = filter.cloned().unwrap_or_default();
         let mut sql = String::from(
             "SELECT t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                    t.title, t.artist, t.album, t.year, t.duration_secs,
+                    t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                     t.has_lrc, t.lrc_path, t.embedded_lyrics,
                     CASE WHEN f.track_id IS NOT NULL THEN 1 ELSE 0 END AS is_favorite
              FROM tracks t
@@ -298,7 +327,7 @@ impl Database {
             let mut tracks = Vec::new();
             while let Some(row) = rows.next().map_err(|e| e.to_string())? {
                 let track_row = map_track_row(&row).map_err(|e| e.to_string())?;
-                let is_favorite: i32 = row.get(14).map_err(|e| e.to_string())?;
+                let is_favorite: i32 = row.get(15).map_err(|e| e.to_string())?;
                 tracks.push(row_to_track(track_row, is_favorite != 0));
             }
             Ok(tracks)
@@ -350,7 +379,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                        t.title, t.artist, t.album, t.year, t.duration_secs,
+                        t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                         t.has_lrc, t.lrc_path, t.embedded_lyrics
                  FROM tracks t
                  INNER JOIN favorites f ON f.track_id = t.id
@@ -406,7 +435,7 @@ impl Database {
             .conn
             .prepare(
                 "SELECT t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
-                        t.title, t.artist, t.album, t.year, t.duration_secs,
+                        t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
                         t.has_lrc, t.lrc_path, t.embedded_lyrics
                  FROM tracks t
                  INNER JOIN playlist_tracks pt ON pt.track_id = t.id
@@ -594,14 +623,15 @@ fn map_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackRow> {
         extension: row.get(3)?,
         file_size: row.get::<_, i64>(4)? as u64,
         modified_ms: row.get::<_, i64>(5)? as i128,
-        title: row.get(6)?,
-        artist: row.get(7)?,
-        album: row.get(8)?,
-        year: row.get(9)?,
-        duration_secs: row.get(10)?,
-        has_lrc: row.get::<_, i32>(11)? != 0,
-        lrc_path: row.get(12)?,
-        embedded_lyrics: row.get(13)?,
+        title: row.get::<_, Option<String>>(6)?,
+        artist: row.get::<_, Option<String>>(7)?,
+        album: row.get::<_, Option<String>>(8)?,
+        genre: row.get::<_, Option<String>>(9)?,
+        year: row.get::<_, Option<i32>>(10)?,
+        duration_secs: row.get::<_, Option<f64>>(11)?,
+        has_lrc: row.get::<_, i32>(12)? != 0,
+        lrc_path: row.get::<_, Option<String>>(13)?,
+        embedded_lyrics: row.get::<_, Option<String>>(14)?,
     })
 }
 
