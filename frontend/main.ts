@@ -344,6 +344,7 @@ async function boot(): Promise<void> {
 
   bindSidebarNavigation(router);
   router.start((route, params) => {
+    if (route.id !== "library") libraryPage.closeLocalPanel();
     if (route.id === "library") void libraryPage.refresh();
     if (route.id === "stats") void statsPage.refresh();
     if (route.id === "recent") void recentPage.refresh();

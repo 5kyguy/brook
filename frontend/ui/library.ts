@@ -11,6 +11,20 @@ export interface LibraryPage {
   setScanStatus(message: string): void;
   getPlayingTrackId(): string | null;
   setPlayingTrackId(id: string | null): void;
+  closeLocalPanel(): void;
+}
+
+function setLocalPanelOpen(open: boolean): void {
+  const panel = document.getElementById("library-local-panel");
+  const main = document.getElementById("library-main-sections");
+  const openBtn = document.getElementById("library-open-local-btn");
+  if (!panel || !main) return;
+
+  panel.hidden = !open;
+  panel.classList.toggle("open", open);
+  main.hidden = open;
+  openBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+  document.getElementById("page-library")?.classList.toggle("library-local-open", open);
 }
 
 export function initLibraryPage(
@@ -23,10 +37,15 @@ export function initLibraryPage(
   const localListEl = document.getElementById("local-files-list");
   const filtersMount = document.getElementById("library-filters");
   const likedToolbar = document.getElementById("library-liked-tracks-toolbar");
+  const openLocalBtn = document.getElementById("library-open-local-btn");
+  const closeLocalBtn = document.getElementById("library-close-local-btn");
 
   if (!likedContainer || !localListEl) {
     throw new Error("Missing library containers");
   }
+
+  openLocalBtn?.addEventListener("click", () => setLocalPanelOpen(true));
+  closeLocalBtn?.addEventListener("click", () => setLocalPanelOpen(false));
 
   let likedTracks: Track[] = [];
   let localTracks: Track[] = [];
@@ -109,6 +128,9 @@ export function initLibraryPage(
     },
     setScanStatus(message: string) {
       if (statusEl) statusEl.textContent = message;
+    },
+    closeLocalPanel() {
+      setLocalPanelOpen(false);
     },
   };
 }

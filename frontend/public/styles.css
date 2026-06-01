@@ -6350,6 +6350,78 @@ img[src=''] {
     color: var(--foreground);
 }
 
+#page-library {
+    position: relative;
+    min-height: 0;
+}
+
+.library-page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.library-page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.library-open-local-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.library-local-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.library-local-panel[hidden] {
+    display: none !important;
+}
+
+.library-local-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+.library-local-panel-header .section-title {
+    margin: 0;
+}
+
+.library-close-local-btn {
+    flex-shrink: 0;
+}
+
+.library-local-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.library-scan-status {
+    padding: 0 0 var(--spacing-sm);
+    margin: 0;
+    opacity: 0.8;
+    font-size: 0.9rem;
+}
+
+#page-library.library-local-open .library-page-toolbar {
+    display: none;
+}
+
 #page-library .library-header {
     margin-bottom: var(--spacing-xl);
 }
@@ -7035,11 +7107,6 @@ img[src=''] {
         gap: var(--spacing-md);
     }
 
-    /* Fix library page layout on mobile */
-    #page-library .search-tabs {
-        flex-wrap: wrap;
-    }
-
     #page-library .library-header {
         flex-wrap: wrap;
     }
@@ -7419,20 +7486,6 @@ img[src=''] {
 
     .section-title {
         font-size: 1.25rem;
-    }
-
-    /* Fix library page horizontal scrolling */
-    #page-library .search-tabs {
-        flex-wrap: wrap;
-        gap: var(--spacing-xs);
-    }
-
-    #page-library .search-tab {
-        padding: var(--spacing-xs) var(--spacing-sm);
-        font-size: 0.85rem;
-        flex: 1;
-        min-width: auto;
-        white-space: nowrap;
     }
 
     #page-library .library-header {

@@ -35,7 +35,6 @@ export function initMonochromeShell(): void {
   const volumeBtn = document.getElementById("volume-btn");
   if (volumeBtn) volumeBtn.innerHTML = SVG_VOLUME(20);
 
-  initLibraryTabs();
   initSidebarToggle();
 }
 
@@ -59,24 +58,6 @@ function initSidebarToggle(): void {
     const collapsed = !document.body.classList.contains("sidebar-collapsed");
     setCollapsed(collapsed);
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
-  });
-}
-
-function initLibraryTabs(): void {
-  const tabs = document.querySelectorAll<HTMLButtonElement>("#page-library .search-tab");
-  const panels = document.querySelectorAll<HTMLElement>("#page-library .search-tab-content");
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const name = tab.dataset.tab;
-      tabs.forEach((t) => t.classList.toggle("active", t === tab));
-      panels.forEach((panel) => {
-        const match =
-          (name === "tracks" && panel.id === "library-tab-tracks") ||
-          (name === "local" && panel.id === "library-tab-local");
-        panel.classList.toggle("active", match);
-      });
-    });
   });
 }
 
