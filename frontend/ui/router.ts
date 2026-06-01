@@ -14,6 +14,8 @@ export const ROUTES: RouteDefinition[] = [
 const routeByPath = new Map(ROUTES.map((route) => [route.path, route]));
 const routeById = new Map(ROUTES.map((route) => [route.id, route]));
 
+const MAIN_NAV_ROUTE_IDS = new Set<RouteId>(["library", "recent", "stats", "settings"]);
+
 export type RouteHandler = (route: RouteDefinition, params: RouteParams) => void;
 
 export interface RouteParams {
@@ -37,6 +39,13 @@ export class Router {
   navigate(routeId: RouteId, push = true): void {
     const route = routeById.get(routeId);
     if (!route) return;
+
+    if (MAIN_NAV_ROUTE_IDS.has(routeId)) {
+      this.playlistId = null;
+      this.entityName = null;
+      this.searchQuery = null;
+    }
+
     let path = route.path;
     if (routeId === "playlist" && this.playlistId) {
       path = `/userplaylist/${encodeURIComponent(this.playlistId)}`;
@@ -90,6 +99,14 @@ export class Router {
     this.dispatch(routeById.get("search")!);
   }
 
+  /** Leave playlist / artist / album / search overlay and return to library. */
+  closeDetail(): void {
+    this.playlistId = null;
+    this.entityName = null;
+    this.searchQuery = null;
+    this.navigate("library");
+  }
+
   getParams(): RouteParams {
     return {
       playlistId: this.playlistId,
@@ -128,12 +145,9 @@ export class Router {
       this.searchQuery = new URLSearchParams(search).get("q");
     }
 
-    document.querySelectorAll(".sidebar-nav .nav-item a").forEach((link) => {
+    document.querySelectorAll(".sidebar-nav.main .nav-item a").forEach((link) => {
       const href = link.getAttribute("href");
-      const active =
-        route.id === "playlist"
-          ? path.startsWith("/userplaylist/")
-          : href === route.path;
+      const active = MAIN_NAV_ROUTE_IDS.has(route.id) && href === route.path;
       link.classList.toggle("active", active);
     });
 
@@ -146,6 +160,11 @@ export class Router {
       else active = page.id === `page-${route.id}`;
       page.classList.toggle("active", active);
     });
+
+    const closePlaylistBtn = document.getElementById("close-playlist-btn");
+    if (closePlaylistBtn) {
+      closePlaylistBtn.hidden = route.id !== "playlist";
+    }
 
     this.handler?.(route, this.getParams());
   }
@@ -162,21 +181,24 @@ function pathToRoute(pathname: string, search: string): RouteDefinition {
 }
 
 export function bindSidebarNavigation(router: Router): void {
-  document.querySelectorAll(".sidebar-nav .nav-item a").forEach((link) => {
+  document.querySelectorAll(".sidebar-nav.main .nav-item a").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
       const href = link.getAttribute("href");
       if (!href) return;
-      if (
-        href.startsWith("/userplaylist") ||
-        href.startsWith("/artist") ||
-        href.startsWith("/album") ||
-        href.startsWith("/search")
-      ) {
-        return;
-      }
       const route = routeByPath.get(href);
       if (route) router.navigate(route.id);
     });
+  });
+
+  document.querySelector(".sidebar-logo-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    router.navigate("library");
+  });
+
+  document.getElementById("close-playlist-btn")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    router.closeDetail();
   });
 }

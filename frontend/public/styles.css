@@ -12100,3 +12100,28 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
         max-width: none;
     }
 }
+
+/* Brook: close control on playlist / chart detail (main header, top-right) */
+.main-header .detail-page-close {
+    flex-shrink: 0;
+    margin-left: auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    color: var(--muted-foreground);
+    transition:
+        background-color var(--transition-fast),
+        color var(--transition-fast);
+}
+
+.main-header .detail-page-close:hover {
+    background-color: var(--secondary);
+    color: var(--foreground);
+}
+
+.main-header .detail-page-close[hidden] {
+    display: none !important;
+}

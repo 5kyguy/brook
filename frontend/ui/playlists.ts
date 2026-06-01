@@ -110,7 +110,7 @@ export function initPlaylists(
         wrapper.innerHTML = createUserPlaylistCardHTML(playlist);
         const card = wrapper.firstElementChild as HTMLElement;
         card.addEventListener("click", () => {
-          void openPlaylist(playlist.id);
+          router.openPlaylist(playlist.id);
         });
         chartGrid.appendChild(card);
       }
@@ -123,7 +123,7 @@ export function initPlaylists(
       wrapper.innerHTML = createUserPlaylistCardHTML(playlist);
       const card = wrapper.firstElementChild as HTMLElement;
       card.addEventListener("click", () => {
-        void openPlaylist(playlist.id);
+        router.openPlaylist(playlist.id);
       });
       playlistGrid.insertBefore(card, createCard);
     }
@@ -155,7 +155,6 @@ export function initPlaylists(
       },
       emptyMessage: "This playlist is empty.",
     });
-    router.openPlaylist(id);
   }
 
   return { refresh, openPlaylist };
