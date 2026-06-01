@@ -1,5 +1,6 @@
 import * as api from "../api";
 import type { Track } from "../types";
+import { openCreatePlaylistModal } from "./playlists";
 
 export interface PlaylistPicker {
   open(track: Track): Promise<void>;
@@ -42,13 +43,7 @@ export function initPlaylistPicker(onChanged?: () => void): PlaylistPicker {
         if (!currentTrack) return;
         if (option.classList.contains("create-new-option")) {
           close();
-          const createModal = document.getElementById("playlist-modal");
-          const nameInput = document.getElementById("playlist-name-input") as HTMLInputElement | null;
-          if (createModal && nameInput) {
-            nameInput.value = "";
-            createModal.classList.add("active");
-            createModal.dataset.pendingTrackId = currentTrack.id;
-          }
+          openCreatePlaylistModal({ pendingTrackId: currentTrack.id });
           return;
         }
         const id = (option as HTMLElement).dataset.id;

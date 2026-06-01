@@ -311,18 +311,16 @@ async function boot(): Promise<void> {
     },
   });
 
-  wirePlaylistModalSave(() => {
-    void playlists.refresh();
-    const modal = document.getElementById("playlist-modal");
-    const trackId = modal?.dataset.pendingTrackId;
-    if (trackId) {
-      void (async () => {
-        const list = await api.playlists.getPlaylists();
-        const newest = list[list.length - 1];
-        if (newest) await api.playlists.addToPlaylist(newest.id, trackId);
-        delete modal!.dataset.pendingTrackId;
-      })();
-    }
+  wirePlaylistModalSave(({ playlist, pendingTrackId, openAfterCreate }) => {
+    void (async () => {
+      await playlists.refresh();
+      if (pendingTrackId) {
+        await api.playlists.addToPlaylist(playlist.id, pendingTrackId);
+      }
+      if (openAfterCreate) {
+        router.openPlaylist(playlist.id);
+      }
+    })();
   });
 
   const settingsPage = initSettingsPage(

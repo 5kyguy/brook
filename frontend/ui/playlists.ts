@@ -89,13 +89,7 @@ export function initPlaylists(
   document.getElementById("like-playlist-btn")?.style.setProperty("display", "none");
 
   createCard.addEventListener("click", () => {
-    const name = window.prompt("Playlist name");
-    if (!name?.trim()) return;
-    void (async () => {
-      const playlist = await api.playlists.createPlaylist(name.trim());
-      await refresh();
-      router.openPlaylist(playlist.id);
-    })();
+    openCreatePlaylistModal({ openAfterCreate: true });
   });
 
   async function refresh() {
@@ -160,7 +154,46 @@ export function initPlaylists(
   return { refresh, openPlaylist };
 }
 
-export function wirePlaylistModalSave(onSaved: () => void): void {
+export interface OpenCreatePlaylistModalOptions {
+  /** Add this track to the new playlist after creation (from add-to-playlist flow). */
+  pendingTrackId?: string;
+  /** Navigate to the new playlist detail view after creation (library create card). */
+  openAfterCreate?: boolean;
+}
+
+export interface PlaylistModalSaveResult {
+  playlist: Playlist;
+  pendingTrackId?: string;
+  openAfterCreate: boolean;
+}
+
+export function openCreatePlaylistModal(options: OpenCreatePlaylistModalOptions = {}): void {
+  const modal = document.getElementById("playlist-modal");
+  const nameInput = document.getElementById("playlist-name-input") as HTMLInputElement | null;
+  if (!modal || !nameInput) return;
+
+  for (const id of [
+    "playlist-cover-wrapper",
+    "playlist-description-input",
+    "playlist-public-setting",
+    "import-section",
+  ]) {
+    document.getElementById(id)?.style.setProperty("display", "none");
+  }
+
+  delete modal.dataset.pendingTrackId;
+  delete modal.dataset.openAfterCreate;
+  if (options.pendingTrackId) modal.dataset.pendingTrackId = options.pendingTrackId;
+  if (options.openAfterCreate) modal.dataset.openAfterCreate = "true";
+
+  nameInput.value = "";
+  modal.classList.add("active");
+  nameInput.focus();
+}
+
+export function wirePlaylistModalSave(
+  onSaved: (result: PlaylistModalSaveResult) => void,
+): void {
   const modal = document.getElementById("playlist-modal");
   const saveBtn = document.getElementById("playlist-modal-save");
   const cancelBtn = document.getElementById("playlist-modal-cancel");
@@ -168,19 +201,54 @@ export function wirePlaylistModalSave(onSaved: () => void): void {
 
   if (!modal || !saveBtn || !nameInput) return;
 
-  const close = () => modal.classList.remove("active");
+  let saving = false;
+
+  const close = () => {
+    modal.classList.remove("active");
+    delete modal.dataset.pendingTrackId;
+    delete modal.dataset.openAfterCreate;
+  };
+
+  const submit = () => {
+    if (saving) return;
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.focus();
+      return;
+    }
+    const pendingTrackId = modal.dataset.pendingTrackId;
+    const openAfterCreate = modal.dataset.openAfterCreate === "true";
+    saving = true;
+    saveBtn.setAttribute("disabled", "true");
+    void (async () => {
+      try {
+        const playlist = await api.playlists.createPlaylist(name);
+        close();
+        onSaved({
+          playlist,
+          pendingTrackId,
+          openAfterCreate,
+        });
+      } finally {
+        saving = false;
+        saveBtn.removeAttribute("disabled");
+      }
+    })();
+  };
 
   cancelBtn?.addEventListener("click", close);
   modal.querySelector(".modal-overlay")?.addEventListener("click", close);
 
-  saveBtn.addEventListener("click", () => {
-    const name = nameInput.value.trim();
-    if (!name) return;
-    void (async () => {
-      await api.playlists.createPlaylist(name);
+  saveBtn.addEventListener("click", submit);
+
+  nameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      submit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
       close();
-      onSaved();
-    })();
+    }
   });
 }
 

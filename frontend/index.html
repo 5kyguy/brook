@@ -113,10 +113,12 @@
                     id="playlist-name-input"
                     class="template-input"
                     placeholder="Playlist name"
-                    style="margin: 1rem 0"
+                    autocomplete="off"
+                    style="margin: 1rem 0; width: 100%"
                 />
                 <div
                     id="playlist-cover-wrapper"
+                    hidden
                     style="margin: 0.5rem 0; display: flex; gap: 0.5rem; align-items: stretch"
                 >
                     <input
@@ -164,6 +166,7 @@
                     id="playlist-description-input"
                     class="template-input"
                     placeholder="Description (optional)"
+                    hidden
                     style="margin: 0.5rem 0; min-height: 80px; resize: vertical"
                 ></textarea>
                 <br />
@@ -429,6 +432,7 @@
                 <div
                     id="playlist-public-setting"
                     class="setting-item"
+                    hidden
                     style="margin-bottom: 1rem; padding: 0; border: none; background: transparent"
                 >
                     <div class="info">
@@ -444,7 +448,7 @@
                 <div class="modal-actions">
                     <button id="playlist-share-btn" class="btn-secondary" style="display: none">Share</button>
                     <button id="playlist-modal-cancel" class="btn-secondary">Cancel</button>
-                    <button id="playlist-modal-save" class="btn-primary">Save</button>
+                    <button id="playlist-modal-save" class="btn-primary">Create</button>
                 </div>
             </div>
         </div>
