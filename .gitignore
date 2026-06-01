@@ -13,3 +13,6 @@ frontend/dist/
 backend/target/
 backend/gen/
 bun.lock
+
+# Dev startup / scan timing logs (see logs/README.md)
+logs/*.log

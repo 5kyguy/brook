@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Emitter, State};
 
+use std::time::Instant;
+
 use crate::cover_art::{self, AlbumArtPayload};
+use crate::dev_log;
 use crate::metadata;
 use crate::models::{ScanCompletePayload, ScanProgressPayload, ScanResult, Track, TrackFilter};
 use crate::paths;
@@ -63,15 +66,34 @@ fn apply_music_root(state: &State<'_, AppState>, path: PathBuf) -> Result<String
 
 #[tauri::command]
 pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanResult, String> {
+    let timer = dev_log::Timer::new("scan", "scan_library");
+
     let music_root = resolve_music_root(&state)?;
+    dev_log::append("scan", &format!("music_root={}", music_root.display()));
+
+    let walk_start = Instant::now();
     let files = scanner::scan_files(&music_root)?;
+    let walk_ms = walk_start.elapsed().as_millis();
     let total = files.len();
+    timer.log_step(&format!("walkdir {total} files ({walk_ms}ms)"));
+
     let mut added = 0usize;
     let mut updated = 0usize;
     let mut skipped = 0usize;
+    let mut metadata_reads = 0usize;
+    let mut metadata_ms: u128 = 0;
+    let mut upsert_ms: u128 = 0;
+    let mut progress_emits = 0usize;
 
+    let fp_start = Instant::now();
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let fingerprints = db.get_scan_fingerprints()?;
+    let fp_ms = fp_start.elapsed().as_millis();
+    timer.log_step(&format!(
+        "fingerprints {} entries ({fp_ms}ms)",
+        fingerprints.len()
+    ));
+
     let scanned_ids: Vec<String> = files.iter().map(|f| f.id.clone()).collect();
 
     for (index, file) in files.iter().enumerate() {
@@ -83,6 +105,7 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
                 path: Some(file.relative_path.clone()),
             },
         );
+        progress_emits += 1;
 
         if let Some((stored_mtime, stored_size)) = fingerprints.get(&file.id) {
             if *stored_mtime == file.modified_ms as i64 && *stored_size == file.file_size as i64 {
@@ -91,9 +114,15 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
             }
         }
 
+        let meta_start = Instant::now();
         let meta = metadata::read_metadata(Path::new(&file.absolute_path)).unwrap_or_default();
+        metadata_ms += meta_start.elapsed().as_millis();
+        metadata_reads += 1;
+
         let existed = fingerprints.contains_key(&file.id);
+        let upsert_start = Instant::now();
         db.upsert_track(file, &meta)?;
+        upsert_ms += upsert_start.elapsed().as_millis();
         if existed {
             updated += 1;
         } else {
@@ -101,20 +130,30 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
         }
     }
 
+    let prune_start = Instant::now();
     let removed = db.delete_tracks_not_in(&scanned_ids)?;
+    let prune_ms = prune_start.elapsed().as_millis();
     let track_count = total;
     let _ = app.emit(
         "library:scan-complete",
         ScanCompletePayload { track_count },
     );
 
-    Ok(ScanResult {
+    let result = ScanResult {
         track_count,
         added,
         updated,
         skipped,
         removed,
-    })
+    };
+
+    timer.finish(format!(
+        "total={total} added={added} updated={updated} skipped={skipped} removed={removed} \
+         metadata_reads={metadata_reads} metadata_ms={metadata_ms} upsert_ms={upsert_ms} \
+         prune_ms={prune_ms} progress_emits={progress_emits}"
+    ));
+
+    Ok(result)
 }
 
 #[tauri::command]

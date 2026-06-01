@@ -1,4 +1,5 @@
 import * as api from "./api";
+import { DevTimer, devLog, logStartupHint } from "./api/dev-log";
 import { initPlayerBar } from "./player/bar";
 import { getLastTrackId, saveLastTrackId } from "./player/last-track";
 import { initLyricsPanel } from "./player/lyrics";
@@ -25,9 +26,13 @@ import { initMonochromeShell } from "./ui/shell";
 import type { Track } from "./types";
 
 async function boot(): Promise<void> {
+  logStartupHint();
+  const bootTimer = new DevTimer("boot", "boot()");
+
   loadStoredTheme();
   initMonochromeShell();
   ensureCreatePlaylistCardArt();
+  bootTimer.step("theme + shell");
 
   const queue = createPlaybackQueue();
   let visualizer: ReturnType<typeof initVisualizer> | null = null;
@@ -362,12 +367,18 @@ async function boot(): Promise<void> {
     }
   });
 
+  bootTimer.step("UI modules wired");
+
   if (!api.isTauri()) {
     libraryPage.setScanStatus("Run bun run tauri:dev for the full offline player.");
+    bootTimer.finish("browser-only (no Tauri)");
     return;
   }
 
+  let scanProgressEvents = 0;
+
   void api.events.onScanProgress((payload) => {
+    scanProgressEvents += 1;
     libraryPage.setScanStatus(
       payload.total > 0
         ? `Scanning ${payload.current}/${payload.total}…`
@@ -376,6 +387,7 @@ async function boot(): Promise<void> {
   });
 
   void api.events.onScanComplete(() => {
+    devLog("boot", `library:scan-progress events received: ${scanProgressEvents}`);
     libraryPage.setScanStatus("Library scan complete.");
   });
 
@@ -429,15 +441,21 @@ async function boot(): Promise<void> {
 
   try {
     await scanAndLoadLibrary(libraryPage);
+    const playlistsStart = performance.now();
     await playlists.refresh();
+    bootTimer.step(`playlists.refresh ${Math.round(performance.now() - playlistsStart)}ms`);
   } catch (error) {
     console.error(error);
+    devLog("boot", `library init failed: ${error instanceof Error ? error.message : String(error)}`);
     libraryPage.setScanStatus(
       error instanceof Error ? error.message : "Failed to initialize library",
     );
   }
 
+  const restoreStart = performance.now();
   await restoreNowPlayingBar(playerBar, libraryPage, setNowPlayingTrack);
+  bootTimer.step(`restoreNowPlayingBar ${Math.round(performance.now() - restoreStart)}ms`);
+  bootTimer.finish("ready");
 }
 
 async function restoreNowPlayingBar(
@@ -445,12 +463,15 @@ async function restoreNowPlayingBar(
   libraryPage: ReturnType<typeof initLibraryPage>,
   setNowPlayingTrack: (track: Track | null) => Promise<void>,
 ): Promise<void> {
+  const timer = new DevTimer("boot", "restoreNowPlayingBar");
   const state = await api.playback.getPlaybackState();
   playerBar.sync(state);
+  timer.step("getPlaybackState");
 
   const trackId = state.trackId ?? getLastTrackId();
   if (!trackId) {
     playerBar.setTrack(null);
+    timer.finish("no saved track");
     return;
   }
 
@@ -458,8 +479,10 @@ async function restoreNowPlayingBar(
     const track = await api.library.getTrack(trackId);
     await setNowPlayingTrack(track);
     if (state.trackId) libraryPage.setPlayingTrackId(state.trackId);
+    timer.finish(`trackId=${trackId}`);
   } catch {
     playerBar.setTrack(null);
+    timer.finish("no track");
   }
 }
 

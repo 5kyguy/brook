@@ -1,4 +1,5 @@
 export { isTauri, requireTauri } from "./client";
+export { devLog, DevTimer, logStartupHint } from "./dev-log";
 export * as library from "./library";
 export * as playback from "./playback";
 export * as playlists from "./playlists";

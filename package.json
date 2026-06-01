@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "lint": "tsc -p tsconfig.json --noEmit",
     "clean": "./scripts/clean-dev.sh",
     "clean:data": "./scripts/clean-dev.sh --data-only",
     "clean:build": "./scripts/clean-dev.sh --build-only",

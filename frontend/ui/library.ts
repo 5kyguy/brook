@@ -1,4 +1,5 @@
 import * as api from "../api";
+import { DevTimer, devLog } from "../api/dev-log";
 import type { Track } from "../types";
 import { buildFacets, filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
 import { renderTrackList } from "./track-list";
@@ -119,7 +120,12 @@ export function initLibraryPage(
       renderLiked();
     },
     async refreshFacets() {
+      const facetsStart = performance.now();
       const all = await api.library.getTracks({ sortBy: "title", sortOrder: "asc" });
+      devLog(
+        "boot",
+        `getTracks(facets): ${all.length} tracks (${Math.round(performance.now() - facetsStart)}ms)`,
+      );
       libraryHasTracks = all.length > 0;
       filterBar?.setFacets(buildFacets(all));
       if (filtersMount) {
@@ -136,9 +142,25 @@ export function initLibraryPage(
 }
 
 export async function scanAndLoadLibrary(page: LibraryPage): Promise<void> {
+  const timer = new DevTimer("boot", "scanAndLoadLibrary");
   page.setScanStatus("Scanning music library…");
-  await api.library.scanLibrary();
+
+  const scanStart = performance.now();
+  const scanResult = await api.library.scanLibrary();
+  timer.step(
+    `scanLibrary ${Math.round(performance.now() - scanStart)}ms — ` +
+      `tracks=${scanResult.trackCount} added=${scanResult.added} ` +
+      `updated=${scanResult.updated} skipped=${scanResult.skipped}`,
+  );
+
+  const facetsStart = performance.now();
   await page.refreshFacets();
+  timer.step(`refreshFacets ${Math.round(performance.now() - facetsStart)}ms`);
+
+  const refreshStart = performance.now();
   await page.refresh();
+  timer.step(`refresh ${Math.round(performance.now() - refreshStart)}ms`);
+
   page.setScanStatus("");
+  timer.finish("ok");
 }

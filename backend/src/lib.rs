@@ -260,6 +260,7 @@ pub mod cover_art;
 pub mod db;
 pub mod audio;
 pub mod commands;
+pub mod dev_log;
 pub mod playback_session;
 pub mod state;
 
@@ -272,18 +273,33 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let setup_timer = dev_log::Timer::new("setup", "tauri setup");
+
             let app_data = app
                 .path()
                 .app_data_dir()
                 .map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&app_data).map_err(|e| e.to_string())?;
+            setup_timer.log_step("app_data_dir");
 
             let db_path = app_data.join("brook.db");
             let covers_dir = app_data.join("covers");
             std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
+
+            let db_timer = dev_log::Timer::new("setup", "database open + migrate");
             let mut db = db::Database::open(&db_path)?;
+            db_timer.finish(format!("db_path={}", db_path.display()));
+
+            let charts_timer = dev_log::Timer::new("setup", "refresh_chart_playlists_if_due");
             db.refresh_chart_playlists_if_due()?;
+            charts_timer.finish("ok");
+
             app.manage(AppState::new(db, app.handle().clone(), covers_dir));
+            setup_timer.finish("AppState ready");
+            dev_log::append(
+                "setup",
+                &format!("dev logs → {}", dev_log::log_file_path().display()),
+            );
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -318,6 +334,7 @@ pub fn run() {
             commands::stats::get_yearly_wrap,
             commands::stats::get_recent_tracks,
             commands::stats::clear_play_history,
+            commands::dev::dev_log_append,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
