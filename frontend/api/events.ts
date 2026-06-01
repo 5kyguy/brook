@@ -32,6 +32,17 @@ export async function onScanComplete(
   });
 }
 
+export function onceScanComplete(): Promise<ScanCompletePayload> {
+  return new Promise((resolve) => {
+    void (async () => {
+      const unlisten = await onScanComplete((payload) => {
+        void unlisten();
+        resolve(payload);
+      });
+    })();
+  });
+}
+
 export async function onPlaybackState(
   handler: (payload: PlaybackStatePayload) => void,
 ): Promise<UnlistenFn> {

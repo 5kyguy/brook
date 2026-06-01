@@ -9,8 +9,8 @@ pub mod stats;
 pub use dev::dev_log_append;
 pub use favorites::{get_favorites, toggle_favorite};
 pub use library::{
-    get_music_root, get_track, get_tracks, pick_music_folder, reset_music_root, scan_library,
-    set_music_root,
+    get_library_facets, get_music_root, get_track, get_tracks, pick_music_folder,
+    reset_music_root, scan_library, set_music_root, start_library_scan,
 };
 pub use lyrics::read_lyrics;
 pub use playback::{

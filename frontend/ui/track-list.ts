@@ -77,25 +77,9 @@ export function createTrackItemHTML(
   `;
 }
 
-export function renderTrackList(
-  container: HTMLElement,
-  tracks: Track[],
-  options: TrackListOptions,
-): void {
-  container.classList.remove("card-grid");
-  container.classList.add("track-list");
+const TRACK_RENDER_BATCH = 40;
 
-  if (tracks.length === 0) {
-    container.innerHTML = `<p class="placeholder-text">${options.emptyMessage ?? "No tracks to show."}</p>`;
-    return;
-  }
-
-  container.innerHTML = tracks
-    .map((track) => createTrackItemHTML(track, options))
-    .join("");
-
-  applyTrackCovers(container);
-
+function wireTrackListRows(container: HTMLElement, tracks: Track[], options: TrackListOptions): void {
   container.querySelectorAll<HTMLElement>(".track-item").forEach((row) => {
     const trackId = row.dataset.trackId;
     const track = tracks.find((t) => t.id === trackId);
@@ -121,4 +105,63 @@ export function renderTrackList(
       options.onPlay(track, tracks);
     });
   });
+}
+
+function renderTrackListSync(
+  container: HTMLElement,
+  tracks: Track[],
+  options: TrackListOptions,
+): void {
+  container.innerHTML = tracks.map((track) => createTrackItemHTML(track, options)).join("");
+  applyTrackCovers(container);
+  wireTrackListRows(container, tracks, options);
+}
+
+function renderTrackListBatched(
+  container: HTMLElement,
+  tracks: Track[],
+  options: TrackListOptions,
+): void {
+  container.replaceChildren();
+  let index = 0;
+
+  const renderBatch = () => {
+    const slice = tracks.slice(index, index + TRACK_RENDER_BATCH);
+    if (slice.length === 0) {
+      wireTrackListRows(container, tracks, options);
+      return;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = slice.map((track) => createTrackItemHTML(track, options)).join("");
+    while (wrapper.firstChild) {
+      container.appendChild(wrapper.firstChild);
+    }
+    applyTrackCovers(container);
+    index += slice.length;
+    requestAnimationFrame(renderBatch);
+  };
+
+  requestAnimationFrame(renderBatch);
+}
+
+export function renderTrackList(
+  container: HTMLElement,
+  tracks: Track[],
+  options: TrackListOptions,
+): void {
+  container.classList.remove("card-grid");
+  container.classList.add("track-list");
+
+  if (tracks.length === 0) {
+    container.innerHTML = `<p class="placeholder-text">${options.emptyMessage ?? "No tracks to show."}</p>`;
+    return;
+  }
+
+  if (tracks.length > TRACK_RENDER_BATCH) {
+    renderTrackListBatched(container, tracks, options);
+    return;
+  }
+
+  renderTrackListSync(container, tracks, options);
 }

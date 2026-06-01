@@ -13,7 +13,11 @@ import { setCurrentTrackForVisuals } from "./settings/visual-effects";
 import { initStatsPage } from "./ui/stats";
 import { loadStoredTheme } from "./settings/theme";
 import { initEntityPages, initTrackContextMenu } from "./ui/entity-page";
-import { initLibraryPage, scanAndLoadLibrary } from "./ui/library";
+import {
+  initLibraryPage,
+  loadCachedLibrary,
+  startBackgroundLibraryScan,
+} from "./ui/library";
 import { initPlaylistPicker } from "./ui/playlist-picker";
 import {
   ensureCreatePlaylistCardArt,
@@ -328,27 +332,35 @@ async function boot(): Promise<void> {
     })();
   });
 
+  async function afterLibraryScan(): Promise<void> {
+    await libraryPage.refreshFacets();
+    await libraryPage.refreshLiked();
+    await libraryPage.refreshLocalTracks();
+    await playlists.refresh();
+  }
+
+  async function runLibraryScanAndRefresh(): Promise<void> {
+    await api.library.startLibraryScan();
+    await api.library.waitForLibraryScanComplete();
+    await afterLibraryScan();
+  }
+
   const settingsPage = initSettingsPage(
+    () => runLibraryScanAndRefresh(),
     async () => {
-      await api.library.scanLibrary();
-      await libraryPage.refreshFacets();
-      await libraryPage.refresh();
-      await playlists.refresh();
-    },
-    async () => {
-      await api.library.scanLibrary();
-      await libraryPage.refreshFacets();
-      await libraryPage.refresh();
-      await playlists.refresh();
+      await runLibraryScanAndRefresh();
       await statsPage.refresh();
       await recentPage.refresh();
     },
   );
 
+  let appReady = false;
+
   bindSidebarNavigation(router);
   router.start((route, params) => {
+    if (!appReady) return;
     if (route.id !== "library") libraryPage.closeLocalPanel();
-    if (route.id === "library") void libraryPage.refresh();
+    if (route.id === "library") void libraryPage.refreshLiked();
     if (route.id === "stats") void statsPage.refresh();
     if (route.id === "recent") void recentPage.refresh();
     if (route.id === "playlist" && params.playlistId) {
@@ -388,7 +400,11 @@ async function boot(): Promise<void> {
 
   void api.events.onScanComplete(() => {
     devLog("boot", `library:scan-progress events received: ${scanProgressEvents}`);
-    libraryPage.setScanStatus("Library scan complete.");
+    scanProgressEvents = 0;
+    void (async () => {
+      await afterLibraryScan();
+      libraryPage.setScanStatus("");
+    })();
   });
 
   void api.events.onFavoritesChanged(() => {
@@ -440,10 +456,12 @@ async function boot(): Promise<void> {
   });
 
   try {
-    await scanAndLoadLibrary(libraryPage);
     const playlistsStart = performance.now();
+    await loadCachedLibrary(libraryPage);
     await playlists.refresh();
-    bootTimer.step(`playlists.refresh ${Math.round(performance.now() - playlistsStart)}ms`);
+    bootTimer.step(
+      `loadCachedLibrary + playlists.refresh ${Math.round(performance.now() - playlistsStart)}ms`,
+    );
   } catch (error) {
     console.error(error);
     devLog("boot", `library init failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -455,7 +473,10 @@ async function boot(): Promise<void> {
   const restoreStart = performance.now();
   await restoreNowPlayingBar(playerBar, libraryPage, setNowPlayingTrack);
   bootTimer.step(`restoreNowPlayingBar ${Math.round(performance.now() - restoreStart)}ms`);
-  bootTimer.finish("ready");
+
+  startBackgroundLibraryScan(libraryPage);
+  appReady = true;
+  bootTimer.finish("ready (background scan started)");
 }
 
 async function restoreNowPlayingBar(

@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { ScanResult, Track, TrackFilter } from "../types";
+import type { LibraryFacets, ScanResult, Track, TrackFilter } from "../types";
 import { requireTauri } from "./client";
+import { onceScanComplete } from "./events";
 
 export interface AlbumArtPayload {
   data: number[];
@@ -28,9 +29,25 @@ export async function resetMusicRoot(): Promise<string> {
   return invoke<string>("reset_music_root");
 }
 
+export async function startLibraryScan(): Promise<void> {
+  requireTauri();
+  await invoke("start_library_scan");
+}
+
 export async function scanLibrary(): Promise<ScanResult> {
   requireTauri();
   return invoke<ScanResult>("scan_library");
+}
+
+export async function getLibraryFacets(): Promise<LibraryFacets> {
+  requireTauri();
+  return invoke<LibraryFacets>("get_library_facets");
+}
+
+/** Resolves when the current or next background scan finishes. */
+export async function waitForLibraryScanComplete(): Promise<void> {
+  requireTauri();
+  await onceScanComplete();
 }
 
 export async function getTracks(filter?: TrackFilter): Promise<Track[]> {

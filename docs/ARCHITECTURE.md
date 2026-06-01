@@ -301,7 +301,9 @@ CREATE TABLE app_settings (
 | `pick_music_folder` | — | `string \| null` | Native folder picker (null if cancelled) |
 | `set_music_root` | `path: string` | `string` | Set override, clear library data, return canonical path |
 | `reset_music_root` | — | `string` | Remove override, clear library data, return default path |
-| `scan_library` | — | `ScanResult` | Walk library; skip unchanged files; remove stale tracks; emits progress |
+| `start_library_scan` | — | `()` | Start background scan (no-op if one is already running); emits progress/complete |
+| `scan_library` | — | `ScanResult` | Blocking scan (e.g. settings); errors if a scan is already in progress |
+| `get_library_facets` | — | `LibraryFacets` | Distinct artists, albums, years, and track count (no full track list) |
 | `get_tracks` | `TrackFilter?` | `Track[]` | Filter/sort by artist, album, year, text query |
 | `get_track` | `id: string` | `Track` | Single track |
 | `get_album_art` | `id: string` | `{ data, mimeType }` or null | Cover bytes for UI |
@@ -376,6 +378,13 @@ interface PlaybackSpectrumPayload {
 interface LyricsResult {
   source: "lrc" | "embedded" | "none";
   text: string | null;
+}
+
+interface LibraryFacets {
+  artists: string[];
+  albums: string[];
+  years: number[];
+  trackCount: number;
 }
 
 interface ScanResult {

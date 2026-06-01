@@ -8,7 +8,7 @@ use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 use crate::metadata::TrackMetadata;
-use crate::models::{Playlist, PlaylistKind, Track, TrackFilter};
+use crate::models::{LibraryFacets, Playlist, PlaylistKind, Track, TrackFilter};
 use crate::scanner::ScannedFile;
 
 #[derive(Debug, Clone)]
@@ -190,6 +190,74 @@ impl Database {
         self.conn
             .execute(&sql, params.as_slice())
             .map_err(|e| e.to_string())
+    }
+
+    pub fn begin_batch(&mut self) -> Result<(), String> {
+        self.conn
+            .execute_batch("BEGIN IMMEDIATE")
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn commit_batch(&mut self) -> Result<(), String> {
+        self.conn
+            .execute_batch("COMMIT")
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn get_library_facets(&self) -> Result<LibraryFacets, String> {
+        let mut artist_stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT artist FROM tracks
+                 WHERE artist IS NOT NULL AND TRIM(artist) != ''
+                 ORDER BY artist COLLATE NOCASE",
+            )
+            .map_err(|e| e.to_string())?;
+        let artists = artist_stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut album_stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT album FROM tracks
+                 WHERE album IS NOT NULL AND TRIM(album) != ''
+                 ORDER BY album COLLATE NOCASE",
+            )
+            .map_err(|e| e.to_string())?;
+        let albums = album_stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut year_stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT year FROM tracks
+                 WHERE year IS NOT NULL
+                 ORDER BY year DESC",
+            )
+            .map_err(|e| e.to_string())?;
+        let years = year_stmt
+            .query_map([], |row| row.get::<_, i32>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let track_count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+
+        Ok(LibraryFacets {
+            artists,
+            albums,
+            years,
+            track_count: track_count.max(0) as usize,
+        })
     }
 
     pub fn upsert_track(
@@ -686,6 +754,7 @@ mod tests {
             title: Some("Song".into()),
             artist: Some("Artist".into()),
             album: Some("Album".into()),
+            genre: None,
             year: Some(2024),
             duration_secs: Some(180.0),
             embedded_lyrics: None,
@@ -725,6 +794,7 @@ mod tests {
                 title: Some("Zebra".into()),
                 artist: None,
                 album: None,
+                genre: None,
                 year: None,
                 duration_secs: None,
                 embedded_lyrics: None,
@@ -764,6 +834,7 @@ mod tests {
                 title: Some(id.into()),
                 artist: None,
                 album: None,
+                genre: None,
                 year: Some(year),
                 duration_secs: None,
                 embedded_lyrics: None,

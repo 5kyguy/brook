@@ -261,6 +261,7 @@ pub mod db;
 pub mod audio;
 pub mod commands;
 pub mod dev_log;
+pub mod library_scan;
 pub mod playback_session;
 pub mod state;
 
@@ -287,15 +288,35 @@ pub fn run() {
             std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
 
             let db_timer = dev_log::Timer::new("setup", "database open + migrate");
-            let mut db = db::Database::open(&db_path)?;
+            let db = db::Database::open(&db_path)?;
             db_timer.finish(format!("db_path={}", db_path.display()));
 
-            let charts_timer = dev_log::Timer::new("setup", "refresh_chart_playlists_if_due");
-            db.refresh_chart_playlists_if_due()?;
-            charts_timer.finish("ok");
-
             app.manage(AppState::new(db, app.handle().clone(), covers_dir));
-            setup_timer.finish("AppState ready");
+            setup_timer.log_step("AppState ready");
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = tauri::async_runtime::spawn_blocking(move || {
+                    let state = app_handle.state::<AppState>();
+                    let charts_timer =
+                        dev_log::Timer::new("setup", "refresh_chart_playlists_if_due (background)");
+                    let mut db = match state.db.lock() {
+                        Ok(guard) => guard,
+                        Err(e) => {
+                            dev_log::append("setup", &format!("charts refresh lock error: {e}"));
+                            return;
+                        }
+                    };
+                    if let Err(e) = db.refresh_chart_playlists_if_due() {
+                        dev_log::append("setup", &format!("charts refresh error: {e}"));
+                    } else {
+                        charts_timer.finish("ok");
+                    }
+                })
+                .await;
+            });
+
+            setup_timer.finish("window ready (charts deferred)");
             dev_log::append(
                 "setup",
                 &format!("dev logs → {}", dev_log::log_file_path().display()),
@@ -307,7 +328,9 @@ pub fn run() {
             commands::library::pick_music_folder,
             commands::library::set_music_root,
             commands::library::reset_music_root,
+            commands::library::start_library_scan,
             commands::library::scan_library,
+            commands::library::get_library_facets,
             commands::library::get_tracks,
             commands::library::get_track,
             commands::library::get_album_art,

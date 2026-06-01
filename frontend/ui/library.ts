@@ -1,7 +1,7 @@
 import * as api from "../api";
 import { DevTimer, devLog } from "../api/dev-log";
 import type { Track } from "../types";
-import { buildFacets, filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
+import { filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
 import { renderTrackList } from "./track-list";
 import { wireInPageSearch } from "./search";
 
@@ -9,6 +9,7 @@ export interface LibraryPage {
   refresh(): Promise<void>;
   refreshFacets(): Promise<void>;
   refreshLiked(): Promise<void>;
+  refreshLocalTracks(): Promise<void>;
   setScanStatus(message: string): void;
   getPlayingTrackId(): string | null;
   setPlayingTrackId(id: string | null): void;
@@ -45,13 +46,11 @@ export function initLibraryPage(
     throw new Error("Missing library containers");
   }
 
-  openLocalBtn?.addEventListener("click", () => setLocalPanelOpen(true));
-  closeLocalBtn?.addEventListener("click", () => setLocalPanelOpen(false));
-
   let likedTracks: Track[] = [];
   let localTracks: Track[] = [];
   let playingTrackId: string | null = null;
   let libraryHasTracks = false;
+  let localPanelOpen = false;
   const filterBar: FilterBar | null = filtersMount ? initFilterBar(filtersMount) : null;
 
   const listOptions = (tracks: Track[]) => ({
@@ -86,7 +85,7 @@ export function initLibraryPage(
 
   if (filterBar) {
     filterBar.onChange(() => {
-      void refreshLocalOnly();
+      if (localPanelOpen) void refreshLocalOnly();
     });
   }
 
@@ -103,9 +102,24 @@ export function initLibraryPage(
 
   async function refreshLocalOnly() {
     const query = filterBar ? filterStateToQuery(filterBar.getState()) : undefined;
+    const fetchStart = performance.now();
     localTracks = await api.library.getTracks(query);
+    devLog(
+      "boot",
+      `getTracks(local): ${localTracks.length} tracks (${Math.round(performance.now() - fetchStart)}ms)`,
+    );
     renderLocal();
   }
+
+  openLocalBtn?.addEventListener("click", () => {
+    setLocalPanelOpen(true);
+    localPanelOpen = true;
+    void refreshLocalOnly();
+  });
+  closeLocalBtn?.addEventListener("click", () => {
+    setLocalPanelOpen(false);
+    localPanelOpen = false;
+  });
 
   return {
     getPlayingTrackId: () => playingTrackId,
@@ -113,21 +127,25 @@ export function initLibraryPage(
       playingTrackId = id;
     },
     async refresh() {
-      await Promise.all([this.refreshLiked(), refreshLocalOnly()]);
+      await Promise.all([this.refreshLiked(), localPanelOpen ? refreshLocalOnly() : Promise.resolve()]);
     },
     async refreshLiked() {
       likedTracks = await api.library.getFavorites();
       renderLiked();
     },
+    async refreshLocalTracks() {
+      if (!localPanelOpen) return;
+      await refreshLocalOnly();
+    },
     async refreshFacets() {
       const facetsStart = performance.now();
-      const all = await api.library.getTracks({ sortBy: "title", sortOrder: "asc" });
+      const facets = await api.library.getLibraryFacets();
       devLog(
         "boot",
-        `getTracks(facets): ${all.length} tracks (${Math.round(performance.now() - facetsStart)}ms)`,
+        `getLibraryFacets: ${facets.trackCount} tracks (${Math.round(performance.now() - facetsStart)}ms)`,
       );
-      libraryHasTracks = all.length > 0;
-      filterBar?.setFacets(buildFacets(all));
+      libraryHasTracks = facets.trackCount > 0;
+      filterBar?.setFacets(facets);
       if (filtersMount) {
         filtersMount.hidden = !libraryHasTracks;
       }
@@ -137,30 +155,23 @@ export function initLibraryPage(
     },
     closeLocalPanel() {
       setLocalPanelOpen(false);
+      localPanelOpen = false;
     },
   };
 }
 
-export async function scanAndLoadLibrary(page: LibraryPage): Promise<void> {
-  const timer = new DevTimer("boot", "scanAndLoadLibrary");
-  page.setScanStatus("Scanning music library…");
-
-  const scanStart = performance.now();
-  const scanResult = await api.library.scanLibrary();
-  timer.step(
-    `scanLibrary ${Math.round(performance.now() - scanStart)}ms — ` +
-      `tracks=${scanResult.trackCount} added=${scanResult.added} ` +
-      `updated=${scanResult.updated} skipped=${scanResult.skipped}`,
-  );
-
-  const facetsStart = performance.now();
+/** Fast boot path: facets + liked only (no full local track list). */
+export async function loadCachedLibrary(page: LibraryPage): Promise<void> {
+  const timer = new DevTimer("boot", "loadCachedLibrary");
   await page.refreshFacets();
-  timer.step(`refreshFacets ${Math.round(performance.now() - facetsStart)}ms`);
-
-  const refreshStart = performance.now();
-  await page.refresh();
-  timer.step(`refresh ${Math.round(performance.now() - refreshStart)}ms`);
-
-  page.setScanStatus("");
+  timer.step("refreshFacets");
+  await page.refreshLiked();
+  timer.step("refreshLiked");
   timer.finish("ok");
+}
+
+/** Start a background scan; UI should listen for `library:scan-complete`. */
+export function startBackgroundLibraryScan(page: LibraryPage): void {
+  page.setScanStatus("Scanning music library…");
+  void api.library.startLibraryScan();
 }

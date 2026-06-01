@@ -44,6 +44,15 @@ pub struct PlaylistsChangedPayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LibraryFacets {
+    pub artists: Vec<String>,
+    pub albums: Vec<String>,
+    pub years: Vec<i32>,
+    pub track_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub track_count: usize,
     pub added: usize,

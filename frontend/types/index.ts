@@ -152,6 +152,7 @@ export interface LibraryFacets {
   artists: string[];
   albums: string[];
   years: number[];
+  trackCount: number;
 }
 
 export type RouteId =
