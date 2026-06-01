@@ -5,6 +5,7 @@ export const ROUTES: RouteDefinition[] = [
   { id: "recent", path: "/recent", label: "Recent" },
   { id: "stats", path: "/stats", label: "Stats" },
   { id: "settings", path: "/settings", label: "Settings" },
+  { id: "about", path: "/about", label: "About" },
   { id: "playlist", path: "/userplaylist", label: "Playlist" },
   { id: "search", path: "/search", label: "Search" },
   { id: "artist", path: "/artist", label: "Artist" },
@@ -14,7 +15,13 @@ export const ROUTES: RouteDefinition[] = [
 const routeByPath = new Map(ROUTES.map((route) => [route.path, route]));
 const routeById = new Map(ROUTES.map((route) => [route.id, route]));
 
-const MAIN_NAV_ROUTE_IDS = new Set<RouteId>(["library", "recent", "stats", "settings"]);
+const MAIN_NAV_ROUTE_IDS = new Set<RouteId>([
+  "library",
+  "recent",
+  "stats",
+  "settings",
+  "about",
+]);
 
 export type RouteHandler = (route: RouteDefinition, params: RouteParams) => void;
 
@@ -166,6 +173,16 @@ export class Router {
       closePlaylistBtn.hidden = route.id !== "playlist";
     }
 
+    const closeAboutBtn = document.getElementById("close-about-btn");
+    if (closeAboutBtn) {
+      closeAboutBtn.hidden = route.id !== "about";
+    }
+
+    document.querySelectorAll(".sidebar-nav.bottom .nav-item a").forEach((link) => {
+      const href = link.getAttribute("href");
+      link.classList.toggle("active", route.id === "about" && href === "/about");
+    });
+
     this.handler?.(route, this.getParams());
   }
 }
@@ -200,5 +217,19 @@ export function bindSidebarNavigation(router: Router): void {
     event.preventDefault();
     event.stopPropagation();
     router.closeDetail();
+  });
+
+  document.querySelectorAll(".sidebar-nav.bottom .nav-item a").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const href = link.getAttribute("href");
+      if (href === "/about") router.navigate("about");
+    });
+  });
+
+  document.getElementById("close-about-btn")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    router.navigate("library");
   });
 }

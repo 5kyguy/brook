@@ -3,7 +3,7 @@ import type { PlaybackState } from "../types";
 import type { Track } from "../types";
 import { applyTrackCovers, COVER_PLACEHOLDER } from "../ui/cover-art";
 import { formatDuration, trackArtist, trackLabel } from "../ui/dom";
-import { SVG_HEART, SVG_HEART_FILLED } from "../ui/icons";
+import { SVG_HEART, SVG_HEART_FILLED, SVG_PAUSE, SVG_PLAY } from "../ui/icons";
 import type { RepeatMode } from "./queue";
 import { bindDragSlider } from "./slider";
 
@@ -116,9 +116,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   const updateFsPlayButton = () => {
     if (!fsPlayBtn) return;
     const playing = playbackStatus === "playing";
-    fsPlayBtn.innerHTML = playing
-      ? `<use svg="./images/pause.svg" size="28" />`
-      : `<use svg="./images/play.svg" size="28" />`;
+    fsPlayBtn.innerHTML = playing ? SVG_PAUSE(28) : SVG_PLAY(28);
     fsPlayBtn.title = playing ? "Pause" : "Play";
   };
 

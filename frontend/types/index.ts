@@ -160,6 +160,7 @@ export type RouteId =
   | "recent"
   | "stats"
   | "settings"
+  | "about"
   | "playlist"
   | "search"
   | "artist"

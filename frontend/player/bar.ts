@@ -148,6 +148,7 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
   mobileAddPlaylistBtn?.addEventListener("click", openAddToPlaylist);
 
   if (likeBtn) likeBtn.innerHTML = SVG_HEART(20);
+  updatePlayButton();
 
   if (progressBar) {
     bindDragSlider(progressBar, {

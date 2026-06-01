@@ -1,37 +1,9 @@
-import { SVG_PLAY, SVG_VOLUME, SVG_MUTE } from "./icons";
+import { SVG_VOLUME, SVG_MUTE } from "./icons";
 
 const SIDEBAR_COLLAPSED_KEY = "brook-sidebar-collapsed";
 
-/** Hide streaming-only chrome; init player chrome like Monochrome. */
-export function initMonochromeShell(): void {
-  const hideIds = [
-    "cast-btn",
-    "download-current-btn",
-    "now-playing-party-btn",
-    "now-playing-mix-btn",
-    "sleep-timer-btn",
-    "sleep-timer-btn-desktop",
-    "radio-loading-indicator",
-    "shuffle-liked-tracks-btn",
-    "download-liked-tracks-btn",
-    "library-create-folder-card",
-    "nav-back",
-    "nav-forward",
-    "header-account-btn",
-  ];
-
-  for (const id of hideIds) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = "none";
-  }
-
-  document.querySelectorAll(".sidebar-nav-bottom").forEach((el) => {
-    (el as HTMLElement).style.display = "none";
-  });
-
-  const playBtn = document.querySelector<HTMLButtonElement>(".now-playing-bar .play-pause-btn");
-  if (playBtn) playBtn.innerHTML = SVG_PLAY(20);
-
+/** Sidebar toggle and volume button icons. */
+export function initAppShell(): void {
   const volumeBtn = document.getElementById("volume-btn");
   if (volumeBtn) volumeBtn.innerHTML = SVG_VOLUME(20);
 

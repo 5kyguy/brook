@@ -26,7 +26,7 @@ import {
 } from "./ui/playlists";
 import { bindSidebarNavigation, Router } from "./ui/router";
 import { initGlobalSearch, initSearchPage } from "./ui/search";
-import { initMonochromeShell } from "./ui/shell";
+import { initAppShell } from "./ui/shell";
 import type { Track } from "./types";
 
 async function boot(): Promise<void> {
@@ -34,7 +34,7 @@ async function boot(): Promise<void> {
   const bootTimer = new DevTimer("boot", "boot()");
 
   loadStoredTheme();
-  initMonochromeShell();
+  initAppShell();
   ensureCreatePlaylistCardArt();
   bootTimer.step("theme + shell");
 

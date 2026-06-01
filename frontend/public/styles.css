@@ -5228,6 +5228,18 @@ input:checked + .slider::before {
     border-left: 3px solid var(--muted-foreground);
 }
 
+.about-credit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    color: var(--muted-foreground);
+}
+
+.about-credit .heart-icon {
+    color: var(--highlight);
+}
+
 #download-notifications {
     position: fixed;
     bottom: calc(max(env(safe-area-inset-bottom), 0px) + 12px);

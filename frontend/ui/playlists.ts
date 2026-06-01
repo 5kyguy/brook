@@ -43,8 +43,6 @@ export function initPlaylists(
   const detailTitle = document.getElementById("playlist-detail-title");
   const detailMeta = document.getElementById("playlist-detail-meta");
   const detailList = document.getElementById("playlist-detail-tracklist");
-  const playPlaylistBtn = document.getElementById("play-playlist-btn");
-
   if (!grid || !createCard || !detailTitle || !detailMeta || !detailList) {
     throw new Error("Missing playlist elements");
   }
@@ -82,11 +80,6 @@ export function initPlaylists(
       });
     },
   );
-
-  if (playPlaylistBtn) playPlaylistBtn.style.display = "none";
-  document.getElementById("shuffle-playlist-btn")?.style.setProperty("display", "none");
-  document.getElementById("download-playlist-btn")?.style.setProperty("display", "none");
-  document.getElementById("like-playlist-btn")?.style.setProperty("display", "none");
 
   createCard.addEventListener("click", () => {
     openCreatePlaylistModal({ openAfterCreate: true });
@@ -171,15 +164,6 @@ export function openCreatePlaylistModal(options: OpenCreatePlaylistModalOptions 
   const modal = document.getElementById("playlist-modal");
   const nameInput = document.getElementById("playlist-name-input") as HTMLInputElement | null;
   if (!modal || !nameInput) return;
-
-  for (const id of [
-    "playlist-cover-wrapper",
-    "playlist-description-input",
-    "playlist-public-setting",
-    "import-section",
-  ]) {
-    document.getElementById(id)?.style.setProperty("display", "none");
-  }
 
   delete modal.dataset.pendingTrackId;
   delete modal.dataset.openAfterCreate;
