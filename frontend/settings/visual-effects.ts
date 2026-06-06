@@ -15,7 +15,7 @@ export function reapplyTrackVisualEffects(): void {
   void applyTrackVisualEffects(currentTrackForVisuals);
 }
 
-export async function applyTrackVisualEffects(track: Track | null): Promise<void> {
+async function applyTrackVisualEffects(track: Track | null): Promise<void> {
   const settings = loadVisualSettings();
 
   if (!track || !settings.dynamicColor) {

@@ -28,30 +28,39 @@ export function loadVisualSettings(): VisualSettings {
   };
 }
 
-export function saveVisualSetting(name: keyof VisualSettings, value: boolean): void {
+function saveVisualSetting(name: keyof VisualSettings, value: boolean): void {
   localStorage.setItem(key(name), String(value));
-  document.body.dataset[name.replace(/([A-Z])/g, "-$1").toLowerCase()] = String(value);
+  const datasetKey = name.replace(/([A-Z])/g, "-$1").toLowerCase();
+  document.body.dataset[datasetKey] = String(value);
 }
 
-export function applyVisualSettings(settings: VisualSettings): void {
+function applyVisualSettings(settings: VisualSettings): void {
   document.body.dataset.dynamicColor = String(settings.dynamicColor);
 }
 
 export function initVisualSettings(): void {
+  document.getElementById("page-background")?.remove();
+  document.body.classList.remove("album-background-enabled", "cd-spin-enabled");
+  localStorage.removeItem(STORAGE_PREFIX + "album-background");
+  localStorage.removeItem(STORAGE_PREFIX + "waveform");
+  localStorage.removeItem(STORAGE_PREFIX + "cd-spin");
+  document.querySelectorAll(".waveform-canvas").forEach((el) => el.remove());
+  document.querySelectorAll(".progress-bar.waveform-enabled").forEach((el) => {
+    el.classList.remove("waveform-enabled");
+  });
+  document.querySelectorAll(".fullscreen-artwork-card.cd-spin").forEach((el) => {
+    el.classList.remove("cd-spin");
+  });
+
   const settings = loadVisualSettings();
   applyVisualSettings(settings);
 
-  const bindToggle = (id: string, name: keyof VisualSettings) => {
-    const input = document.getElementById(id) as HTMLInputElement | null;
-    if (!input) return;
-    input.checked = settings[name];
-    input.addEventListener("change", () => {
-      saveVisualSetting(name, input.checked);
-      if (name === "dynamicColor") {
-        reapplyTrackVisualEffects();
-      }
-    });
-  };
-
-  bindToggle("dynamic-color-toggle", "dynamicColor");
+  const input = document.getElementById("dynamic-color-toggle") as HTMLInputElement | null;
+  if (!input) return;
+  input.checked = settings.dynamicColor;
+  input.addEventListener("change", () => {
+    saveVisualSetting("dynamicColor", input.checked);
+    applyVisualSettings(loadVisualSettings());
+    reapplyTrackVisualEffects();
+  });
 }

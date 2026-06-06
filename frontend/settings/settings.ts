@@ -2,14 +2,10 @@ import { initThemeSettings } from "./theme";
 import { initVisualSettings } from "./visual";
 import * as api from "../api";
 
-export interface SettingsPage {
-  refreshMusicRoot(): Promise<void>;
-}
-
 export function initSettingsPage(
   onRescan: () => Promise<void>,
   onMusicRootChanged: () => Promise<void>,
-): SettingsPage {
+): void {
   initThemeSettings();
   initVisualSettings();
 
@@ -48,9 +44,15 @@ export function initSettingsPage(
   const musicStatus =
     document.getElementById("settings-music-root-status") ?? statusEl;
 
-  async function refreshMusicRoot() {
-    await api.library.getMusicRoot();
-  }
+  const refreshMusicRootStatus = () => {
+    void api.library.getMusicRoot().then((root) => {
+      if (musicStatus) musicStatus.textContent = root ? `Current folder: ${root}` : "";
+    }).catch(() => {
+      if (musicStatus) musicStatus.textContent = "";
+    });
+  };
+
+  refreshMusicRootStatus();
 
   document.getElementById("settings-choose-music-folder-btn")?.addEventListener("click", () => {
     const btn = document.getElementById("settings-choose-music-folder-btn") as HTMLButtonElement | null;
@@ -64,6 +66,7 @@ export function initSettingsPage(
         if (musicStatus) musicStatus.textContent = "Updating music folder…";
         await api.library.setMusicRoot(picked);
         await onMusicRootChanged();
+        refreshMusicRootStatus();
         if (musicStatus) musicStatus.textContent = "Music folder updated and library rescanned.";
       } catch (error) {
         if (musicStatus) {
@@ -95,15 +98,4 @@ export function initSettingsPage(
         btn.disabled = false;
       });
   });
-
-  document.getElementById("customize-shortcuts-btn")?.addEventListener("click", () => {
-    document.getElementById("shortcuts-modal")?.classList.add("active");
-  });
-  document.querySelector(".close-shortcuts")?.addEventListener("click", () => {
-    document.getElementById("shortcuts-modal")?.classList.remove("active");
-  });
-
-  return {
-    refreshMusicRoot,
-  };
 }
