@@ -1,4 +1,4 @@
-import type { LibraryFacets, Track, TrackFilter } from "../types";
+import type { LibraryFacets, TrackFilter } from "../types";
 import { el } from "./dom";
 
 export interface LibraryFilterState {
@@ -41,24 +41,6 @@ function parseSortValue(value: string): Pick<LibraryFilterState, "sortBy" | "sor
     LibraryFilterState["sortOrder"],
   ];
   return { sortBy, sortOrder };
-}
-
-export function buildFacets(tracks: Track[]): LibraryFacets {
-  const artists = new Set<string>();
-  const albums = new Set<string>();
-  const years = new Set<number>();
-
-  for (const track of tracks) {
-    if (track.artist?.trim()) artists.add(track.artist.trim());
-    if (track.album?.trim()) albums.add(track.album.trim());
-    if (track.year != null) years.add(track.year);
-  }
-
-  return {
-    artists: [...artists].sort((a, b) => a.localeCompare(b)),
-    albums: [...albums].sort((a, b) => a.localeCompare(b)),
-    years: [...years].sort((a, b) => b - a),
-  };
 }
 
 export function filterStateToQuery(state: LibraryFilterState): TrackFilter {

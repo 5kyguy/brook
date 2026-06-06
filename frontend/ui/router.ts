@@ -1,6 +1,6 @@
 import type { RouteDefinition, RouteId } from "../types";
 
-export const ROUTES: RouteDefinition[] = [
+const ROUTES: RouteDefinition[] = [
   { id: "library", path: "/library", label: "Library" },
   { id: "recent", path: "/recent", label: "Recent" },
   { id: "stats", path: "/stats", label: "Stats" },

@@ -1,6 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import * as api from "../api";
 import type {
   FavoritesChangedPayload,
   PlaybackEndedPayload,

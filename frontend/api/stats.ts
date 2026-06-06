@@ -23,11 +23,6 @@ export async function getRecentTracks(limit = 50): Promise<Track[]> {
   return invoke<Track[]>("get_recent_tracks", { limit });
 }
 
-export async function clearPlayHistory(): Promise<void> {
-  requireTauri();
-  return invoke<void>("clear_play_history");
-}
-
 export function formatListenDuration(secs: number): string {
   if (!Number.isFinite(secs) || secs < 60) {
     return `${Math.round(secs || 0)} sec`;

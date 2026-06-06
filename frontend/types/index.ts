@@ -25,14 +25,6 @@ export interface TrackFilter {
   sortOrder?: "asc" | "desc";
 }
 
-export interface ScanResult {
-  trackCount: number;
-  added: number;
-  updated: number;
-  skipped: number;
-  removed: number;
-}
-
 export interface PlaybackState {
   status: PlaybackStatus;
   trackId: string | null;

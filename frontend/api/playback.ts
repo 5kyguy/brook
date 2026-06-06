@@ -23,11 +23,6 @@ export async function resume(): Promise<void> {
   return invoke<void>("resume");
 }
 
-export async function stop(): Promise<void> {
-  requireTauri();
-  return invoke<void>("stop");
-}
-
 export async function seek(positionSecs: number): Promise<void> {
   requireTauri();
   return invoke<void>("seek", { positionSecs });

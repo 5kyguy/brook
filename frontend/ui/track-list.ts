@@ -29,7 +29,7 @@ export interface TrackListOptions extends TrackListActions {
   emptyMessage?: string;
 }
 
-export function createTrackItemHTML(
+function createTrackItemHTML(
   track: Track,
   options: TrackListOptions,
 ): string {

@@ -4,7 +4,6 @@ import { renderTrackList, type TrackListActions } from "./track-list";
 
 export interface SearchPage {
   search(query: string): Promise<void>;
-  refresh(): Promise<void>;
 }
 
 export function initSearchPage(actions: TrackListActions): SearchPage {
@@ -37,9 +36,6 @@ export function initSearchPage(actions: TrackListActions): SearchPage {
       }
       const tracks = await api.library.getTracks({ query: lastQuery, sortBy: "title" });
       render(tracks, lastQuery);
-    },
-    async refresh() {
-      if (lastQuery) await this.search(lastQuery);
     },
   };
 }

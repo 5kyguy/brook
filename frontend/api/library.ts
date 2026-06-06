@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { LibraryFacets, ScanResult, Track, TrackFilter } from "../types";
+import type { LibraryFacets, Track, TrackFilter } from "../types";
 import { requireTauri } from "./client";
 import { onceScanComplete } from "./events";
 
@@ -24,19 +24,9 @@ export async function setMusicRoot(path: string): Promise<string> {
   return invoke<string>("set_music_root", { path });
 }
 
-export async function resetMusicRoot(): Promise<string> {
-  requireTauri();
-  return invoke<string>("reset_music_root");
-}
-
 export async function startLibraryScan(): Promise<void> {
   requireTauri();
   await invoke("start_library_scan");
-}
-
-export async function scanLibrary(): Promise<ScanResult> {
-  requireTauri();
-  return invoke<ScanResult>("scan_library");
 }
 
 export async function getLibraryFacets(): Promise<LibraryFacets> {
