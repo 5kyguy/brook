@@ -21,6 +21,7 @@ export interface PlayerBarOptions {
   onCycleRepeat?: () => RepeatMode | Promise<RepeatMode>;
   onToggleFavorite?: () => void | Promise<void>;
   onAddToPlaylist?: () => void | Promise<void>;
+  onToggleMute?: () => void | Promise<void>;
 }
 
 const PLACEHOLDER_TITLE = "Nothing playing";
@@ -44,6 +45,7 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
   const progressFill = document.getElementById("progress-fill");
   const volumeBar = document.getElementById("volume-bar");
   const volumeFill = document.getElementById("volume-fill");
+  const volumeBtn = document.getElementById("volume-btn");
   const coverEl = document.querySelector<HTMLImageElement>(".now-playing-bar .cover");
 
   let currentTrack: Track | null = null;
@@ -184,6 +186,10 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
       },
     });
   }
+
+  volumeBtn?.addEventListener("click", () => {
+    void options.onToggleMute?.();
+  });
 
   return {
     sync(state) {

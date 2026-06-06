@@ -5,7 +5,7 @@ import { getLastTrackId, saveLastTrackId } from "./player/last-track";
 import { initLyricsPanel } from "./player/lyrics";
 import { initQueuePanel } from "./player/queue-panel";
 import { createPlaybackQueue } from "./player/queue";
-import { initKeyboardShortcuts } from "./player/shortcuts";
+import { closeOpenModals, initKeyboardShortcuts } from "./player/shortcuts";
 import { initVisualizer } from "./player/visualizer";
 import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
@@ -51,6 +51,7 @@ async function boot(): Promise<void> {
   let searchPage!: ReturnType<typeof initSearchPage>;
   let entityPages!: ReturnType<typeof initEntityPages>;
   let queuePanel!: ReturnType<typeof initQueuePanel>;
+  let lastVolumeBeforeMute = 1;
 
   const refreshQueuePanel = () => {
     queuePanel?.refresh();
@@ -257,6 +258,21 @@ async function boot(): Promise<void> {
       const track = queue.getCurrent();
       if (track) void playlistPicker.open(track);
     },
+    onToggleMute: () => {
+      void api.playback.getPlaybackState().then((state) => {
+        if (state.volume > 0) {
+          lastVolumeBeforeMute = state.volume;
+          void api.playback.setVolume(0).then(() => {
+            playerBar.sync({ ...state, volume: 0 });
+          });
+        } else {
+          const restore = lastVolumeBeforeMute > 0 ? lastVolumeBeforeMute : 1;
+          void api.playback.setVolume(restore).then(() => {
+            playerBar.sync({ ...state, volume: restore });
+          });
+        }
+      });
+    },
   });
 
   initGlobalSearch((query) => {
@@ -292,9 +308,30 @@ async function boot(): Promise<void> {
     onPrev: () => void goPrev(),
     onToggleMute: () => {
       void api.playback.getPlaybackState().then((state) => {
-        const next = state.volume > 0 ? 0 : 1;
-        void api.playback.setVolume(next);
+        if (state.volume > 0) {
+          lastVolumeBeforeMute = state.volume;
+          void api.playback.setVolume(0).then(() => {
+            playerBar.sync({ ...state, volume: 0 });
+          });
+        } else {
+          const restore = lastVolumeBeforeMute > 0 ? lastVolumeBeforeMute : 1;
+          void api.playback.setVolume(restore).then(() => {
+            playerBar.sync({ ...state, volume: restore });
+          });
+        }
       });
+    },
+    onVolumeDelta: (delta) => {
+      void api.playback.getPlaybackState().then((state) => {
+        const next = Math.max(0, Math.min(1, state.volume + delta));
+        if (next > 0) lastVolumeBeforeMute = next;
+        void api.playback.setVolume(next).then(() => {
+          playerBar.sync({ ...state, volume: next });
+        });
+      });
+    },
+    onCloseModals: () => {
+      closeOpenModals();
     },
     onToggleShuffle: () => {
       queue.toggleShuffle();
@@ -345,7 +382,7 @@ async function boot(): Promise<void> {
     await afterLibraryScan();
   }
 
-  const settingsPage = initSettingsPage(
+  initSettingsPage(
     () => runLibraryScanAndRefresh(),
     async () => {
       await runLibraryScanAndRefresh();
