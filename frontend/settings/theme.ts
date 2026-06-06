@@ -1,19 +1,34 @@
-const THEME_KEY = "monochrome-theme";
-const LEGACY_KEY = "brook-theme";
-const DEFAULT_THEME = "monochrome";
+const THEME_KEY = "brook-theme";
+const DEFAULT_THEME = "black";
+
+export const THEMES = ["black", "white", "ocean", "purple", "forest"] as const;
+export type ThemeId = (typeof THEMES)[number];
+
+function isThemeId(theme: string): theme is ThemeId {
+  return (THEMES as readonly string[]).includes(theme);
+}
+
+function readStoredThemeId(): ThemeId {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored && isThemeId(stored)) return stored;
+  return DEFAULT_THEME;
+}
+
+function persistThemeId(theme: ThemeId): void {
+  localStorage.setItem(THEME_KEY, theme);
+}
 
 export function initThemeSettings(): void {
-  const saved = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_KEY) ?? DEFAULT_THEME;
+  const saved = readStoredThemeId();
   applyTheme(saved);
 
   document.querySelectorAll("#theme-picker .theme-option").forEach((option) => {
     option.classList.toggle("active", option.getAttribute("data-theme") === saved);
     option.addEventListener("click", () => {
       const theme = option.getAttribute("data-theme");
-      if (!theme) return;
+      if (!theme || !isThemeId(theme)) return;
       applyTheme(theme);
-      localStorage.setItem(THEME_KEY, theme);
-      localStorage.removeItem(LEGACY_KEY);
+      persistThemeId(theme);
       document.querySelectorAll("#theme-picker .theme-option").forEach((el) => {
         el.classList.toggle("active", el.getAttribute("data-theme") === theme);
       });
@@ -21,14 +36,12 @@ export function initThemeSettings(): void {
   });
 }
 
-export function applyTheme(theme: string): void {
+function applyTheme(theme: ThemeId): void {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
 export function loadStoredTheme(): void {
-  const saved = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_KEY) ?? DEFAULT_THEME;
-  if (localStorage.getItem(LEGACY_KEY) && !localStorage.getItem(THEME_KEY)) {
-    localStorage.setItem(THEME_KEY, saved);
-  }
+  const saved = readStoredThemeId();
+  persistThemeId(saved);
   applyTheme(saved);
 }

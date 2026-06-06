@@ -10,9 +10,9 @@
         <script>
             (() => {
                 try {
-                    const theme = localStorage.getItem('monochrome-theme') || localStorage.getItem('brook-theme');
+                    const theme = localStorage.getItem('brook-theme');
                     const css = localStorage.getItem('custom_theme_css');
-                    const palette = localStorage.getItem('monochrome-custom-theme');
+                    const palette = localStorage.getItem('brook-custom-theme');
                     if (!theme) return;
 
                     document.documentElement.setAttribute('data-theme', theme);
@@ -53,26 +53,7 @@
             </ul>
         </div>
 
-        <div id="sort-menu" style="display: none">
-            <ul>
-                <li data-sort="custom">Playlist Order</li>
-                <li data-sort="added-newest" class="requires-added-date">Date Added (Newest)</li>
-                <li data-sort="added-oldest" class="requires-added-date">Date Added (Oldest)</li>
-                <li data-sort="title">Title (A-Z)</li>
-                <li data-sort="artist">Artist (A-Z)</li>
-                <li data-sort="album">Album (A-Z)</li>
-            </ul>
-        </div>
-
-        <div id="export-playlist-menu" style="display: none">
-            <ul>
-                <li data-export-format="csv">Export as CSV</li>
-                <li data-export-format="json">Export as JSON</li>
-            </ul>
-        </div>
-
         <div id="side-panel" class="side-panel">
-            <div id="side-panel-resizer" class="side-panel-resizer"></div>
             <div class="panel-header">
                 <h3 id="side-panel-title">Panel</h3>
                 <div class="panel-controls" id="side-panel-controls">
@@ -114,19 +95,6 @@
             </div>
         </div>
 
-        <div id="goto-playlist-modal" class="modal">
-            <div class="modal-overlay"></div>
-            <div class="modal-content">
-                <h3>Go to Playlist</h3>
-                <div id="goto-playlist-list" class="modal-list">
-                    <!-- Options will be injected here -->
-                </div>
-                <div class="modal-actions">
-                    <button id="goto-playlist-cancel" class="btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </div>
-
         <div id="shortcuts-modal" class="modal">
             <div class="modal-overlay"></div>
             <div class="modal-content medium">
@@ -153,30 +121,12 @@
             </div>
         </div>
 
-        <div id="customize-shortcuts-modal" class="modal">
-            <div class="modal-overlay"></div>
-            <div class="modal-content medium">
-                <div class="shortcuts-header">
-                    <h3>Customize Shortcuts</h3>
-                    <button class="close-customize-shortcuts">&times;</button>
-                </div>
-                <div class="customize-shortcuts-content">
-                    <div id="shortcuts-list" class="shortcuts-list"></div>
-                </div>
-                <div class="customize-shortcuts-actions">
-                    <button id="reset-shortcuts-btn" class="btn-secondary">Reset to Defaults</button>
-                    <button id="close-customize-shortcuts-btn" class="btn-primary">Done</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="sidebar-overlay"></div>
         <div class="app-container">
             <aside class="sidebar">
                 <div class="sidebar-content">
                     <div class="sidebar-logo">
                         <a href="/library" class="sidebar-logo-link">
-                            <use svg="./images/monochrome-logo.svg" size="200" class="app-logo" />
+                            <use svg="./images/brook-logo.svg" size="200" class="app-logo" />
                             <span>Brook</span>
                         </a>
                         <button
@@ -219,13 +169,6 @@
                         </ul>
                     </nav>
                     <div class="sidebar-bottom-container">
-                        <nav class="sidebar-nav" id="pinned-items-nav" style="display: none">
-                            <h4 class="pinned-items-header">Pinned</h4>
-                            <ul id="pinned-items-list">
-                                <!-- Pinned should be injected here -->
-                            </ul>
-                        </nav>
-
                         <div class="sidebar-nav-bottom">
                             <nav class="sidebar-nav bottom">
                                 <ul>
@@ -244,9 +187,6 @@
 
             <main class="main-content">
                 <header class="main-header">
-                    <button class="hamburger-menu" id="hamburger-btn" title="Open navigation">
-                        <use svg="!lucide/menu.svg" size="24" />
-                    </button>
                     <form class="search-bar" id="search-form">
                         <use svg="!lucide/search.svg" class="search-icon" size="24" />
                         <input
@@ -266,7 +206,6 @@
                         >
                             &times;
                         </button>
-                        <div id="search-history" class="search-history" style="display: none"></div>
                     </form>
                     <button
                         type="button"
@@ -486,7 +425,7 @@
                         <h2 class="section-title">About Brook</h2>
                         <p class="about-description">
                             Brook is a fully offline desktop music player. It reads audio from your music library on
-                            disk, plays files through a Rust audio engine, and uses a Monochrome-inspired interface in
+                            disk, plays files through a Rust audio engine, and presents a focused desktop interface in
                             Tauri. Nothing here needs the internet.
                         </p>
                         <section class="about-features">
@@ -530,9 +469,9 @@
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Keyboard Shortcuts</span>
-                                        <span class="description">View and customize keyboard shortcuts</span>
+                                        <span class="description">View keyboard shortcuts</span>
                                     </div>
-                                    <button id="customize-shortcuts-btn" class="btn-secondary">Customize</button>
+                                    <button id="customize-shortcuts-btn" class="btn-secondary">View shortcuts</button>
                                 </div>
                             </div>
 
@@ -544,7 +483,7 @@
                                     </div>
                                 </div>
                                 <div class="theme-picker" id="theme-picker">
-                                    <div class="theme-option" data-theme="monochrome">Black</div>
+                                    <div class="theme-option" data-theme="black">Black</div>
                                     <div class="theme-option" data-theme="white">White</div>
                                     <div class="theme-option" data-theme="ocean">Ocean</div>
                                     <div class="theme-option" data-theme="purple">Purple</div>
