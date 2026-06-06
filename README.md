@@ -1,6 +1,6 @@
 # Brook
 
-Fully offline desktop music player. Plays files from `$HOME/Music` with a Monochrome-inspired UI. Rust handles scan, playback, and storage; no network required.
+Fully offline desktop music player. Plays files from `$HOME/Music` with a native desktop UI. Rust handles scan, playback, and storage; no network required.
 
 ## Quick start
 

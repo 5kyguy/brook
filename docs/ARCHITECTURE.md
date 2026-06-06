@@ -1,6 +1,6 @@
 # Brook Architecture
 
-This document records architecture decisions, data models, IPC contracts, and lessons from the Monochrome2 prototype.
+This document records architecture decisions, data models, IPC contracts, and the Brook v1 implementation map.
 
 ## Overview
 
@@ -39,7 +39,7 @@ flowchart TB
 
 **Status:** Accepted
 
-**Context:** Monochrome played audio in the webview via `HTMLAudioElement` and blob URLs to work around WebKit `asset://` bugs. Playback was fragile (fetch failures, codec issues, volume graph bugs).
+**Context:** Webview-based playback (`HTMLAudioElement`, blob URLs) is fragile across platforms and couples decode to the webview codec stack.
 
 **Decision:** Decode and play audio entirely in Rust. Read the full file with `std::fs::read`, decode with `symphonia`, output with `rodio`/`cpal`. The UI receives state via Tauri events only.
 
@@ -47,7 +47,7 @@ flowchart TB
 
 - Reliable playback independent of webview media support
 - Higher RAM use for large files (acceptable by design)
-- Waveform peaks and spectrum visualizer data are computed in Rust (`waveform.rs`, `playback:spectrum` events)
+- Spectrum visualizer data is computed in Rust (`playback:spectrum` events)
 
 **Non-goals:** Blob URLs, Shaka, HLS, chunked streaming, `HTMLAudioElement`.
 
@@ -57,7 +57,7 @@ flowchart TB
 
 **Status:** Accepted
 
-**Context:** Monochrome used IndexedDB in the browser for favorites, playlists, and history.
+**Context:** Browser-side IndexedDB is awkward in a Tauri shell and duplicates data already owned by the scanner.
 
 **Decision:** Store likes, playlists, play history, listening stats, and app settings in SQLite on the Rust side.
 
@@ -73,13 +73,13 @@ flowchart TB
 
 **Status:** Accepted
 
-**Context:** Monochrome uses imperative DOM + global CSS tokens.
+**Context:** Brook targets a single-page desktop shell with a large shared stylesheet and imperative DOM updates.
 
-**Decision:** No React/Vue/Svelte. Port Monochrome layout and design tokens; organize TS into `api/`, `ui/`, `player/`, `settings/`.
+**Decision:** No React/Vue/Svelte. Use token-based CSS and organize TS into `api/`, `ui/`, `player/`, `settings/`.
 
 **Consequences:**
 
-- Closest visual parity with Monochrome reference
+- Closest visual parity with the original design reference
 - All Tauri access centralized in `frontend/api/`
 
 ---
@@ -141,9 +141,7 @@ flowchart TB
 
 **Status:** Accepted
 
-**Decision:** Port Monochrome's settings page partially (theme, waveform toggle, visual prefs, shortcuts). Persist in `localStorage`. Hardcode playback behavior (EQ off, gapless off, replay gain track mode, speed 1×) in Rust — no UI.
-
-**Reference:** Monochrome offline defaults (playback behavior hardcoded in Rust; no streaming UI).
+**Decision:** Settings page covers theme, dynamic colors, shortcuts reference, and music folder controls. Persist UI prefs in `localStorage`. Hardcode playback behavior in Rust — no EQ/gapless/replay-gain UI.
 
 ---
 
@@ -159,7 +157,7 @@ sequenceDiagram
   participant Meta as metadata.rs
   participant DB as SQLite
 
-  UI->>Tauri: scan_library
+  UI->>Tauri: start_library_scan
   Tauri->>Scan: walk music root
   loop each audio file
     alt unchanged mtime and size
@@ -205,7 +203,7 @@ sequenceDiagram
   participant Audio as audio engine
   participant DB as SQLite
 
-  Note over UI,Tauri: On play_track / stop (track switch)
+  Note over UI,Tauri: On play_track (track switch)
   Tauri->>DB: finalize_current_listen → record_play if ≥15s
   Note over UI,Tauri: On playback:ended
   Audio->>DB: record_play with final position
@@ -300,18 +298,14 @@ CREATE TABLE app_settings (
 | `get_music_root` | — | `string` | Resolved library path |
 | `pick_music_folder` | — | `string \| null` | Native folder picker (null if cancelled) |
 | `set_music_root` | `path: string` | `string` | Set override, clear library data, return canonical path |
-| `reset_music_root` | — | `string` | Remove override, clear library data, return default path |
 | `start_library_scan` | — | `()` | Start background scan (no-op if one is already running); emits progress/complete |
-| `scan_library` | — | `ScanResult` | Blocking scan (e.g. settings); errors if a scan is already in progress |
 | `get_library_facets` | — | `LibraryFacets` | Distinct artists, albums, years, and track count (no full track list) |
 | `get_tracks` | `TrackFilter?` | `Track[]` | Filter/sort by artist, album, year, text query |
 | `get_track` | `id: string` | `Track` | Single track |
 | `get_album_art` | `id: string` | `{ data, mimeType }` or null | Cover bytes for UI |
-| `get_waveform_peaks` | `track_id: string` | `number[]` | Normalized peak bins; cached in app data |
 | `play_track` | `id: string` | `()` | Loads file, starts playback |
 | `pause` | — | `()` | |
 | `resume` | — | `()` | |
-| `stop` | — | `()` | |
 | `seek` | `position_secs: f64` | `()` | Seek within current track |
 | `set_volume` | `volume: f32` | `()` | 0.0–1.0 |
 | `set_visualizer_active` | `active: bool` | `()` | Enables ~30 Hz `playback:spectrum` events |
@@ -319,8 +313,6 @@ CREATE TABLE app_settings (
 | `toggle_favorite` | `track_id: string` | `bool` | New liked state |
 | `get_favorites` | — | `Track[]` | |
 | `create_playlist` | `name: string` | `Playlist` | |
-| `update_playlist` | `id, name?` | `Playlist` | |
-| `delete_playlist` | `id: string` | `()` | |
 | `add_to_playlist` | `playlist_id, track_id` | `()` | |
 | `remove_from_playlist` | `playlist_id, track_id` | `()` | |
 | `get_playlists` | — | `Playlist[]` | |
@@ -329,7 +321,6 @@ CREATE TABLE app_settings (
 | `get_stats_years` | — | `number[]` | Calendar years with play history (descending) |
 | `get_yearly_wrap` | `year: i32` | `YearlyWrap` | Calendar-year stats |
 | `get_recent_tracks` | `limit?: number` | `Track[]` | Recent play history (default 50) |
-| `clear_play_history` | — | `()` | Wipe play history and listening stats |
 | `read_lyrics` | `track_id: string` | `LyricsResult` | `{ source, text }` |
 
 ### Events (emit to frontend)
@@ -387,14 +378,6 @@ interface LibraryFacets {
   trackCount: number;
 }
 
-interface ScanResult {
-  trackCount: number;
-  added: number;
-  updated: number;
-  skipped: number;
-  removed: number;
-}
-
 interface TrackFilter {
   artist?: string;
   album?: string;
@@ -411,15 +394,11 @@ interface TrackFilter {
 
 | Setting | Storage | Functional | Notes |
 | ------- | ------- | ---------- | ----- |
-| Theme picker | localStorage | Yes | 5 Monochrome themes |
-| Waveform seekbar | localStorage + Rust | Yes | Toggle + `get_waveform_peaks` cached in app data |
-| Album cover background | localStorage | Yes | Blurred `#page-background` from now-playing cover |
+| Theme picker | localStorage | Yes | Black, White, Ocean, Purple, Forest |
 | Dynamic accent colors | localStorage | Yes | Extract average RGB from cover art in TS |
 | Fullscreen player | UI + Rust events | Yes | Cover-first overlay; transport in `.fullscreen-controls`; spectrum opt-in via `#fs-visualizer-btn` and `playback:spectrum` |
-| CD album cover spin | localStorage | Yes | `.cd` class on fullscreen artwork card |
-| Keyboard shortcuts | — | Yes | Space, arrows, M/S/R/L, `/`, `Q` (queue); shortcuts modal is reference |
+| Keyboard shortcuts | — | Yes | Space, arrows (10s seek / volume), M/S/R/L, `/`, `Q`, Esc; shortcuts modal is reference |
 | Music folder | Rust query + picker | Yes | Optional override in `app_settings` |
-| Git commit info | Vite `define` | Yes | `__GIT_COMMIT__` → `#settings-commit-info` |
 
 ### Hardcoded playback (not in settings UI)
 
@@ -450,17 +429,17 @@ interface TrackFilter {
 
 ---
 
-## Lessons from Monochrome2
+## Design constraints (offline desktop)
 
-| Issue | Monochrome2 behavior | Brook fix |
-| ----- | -------------- | --------- |
-| WebKit `asset://` on `<audio>` | fetch → blob URL workaround | Rust playback, no web audio |
-| Hardcoded `/home/skyguy/Music` | Broken on other machines | `$HOME/Music` via `dirs` |
-| Double fetch (metadata + play) | Full file fetched twice | Metadata at scan; play reads once in Rust |
-| Volume via `element.volume` only | Broken when Web Audio graph active | Rust `set_volume` on output |
-| IndexedDB in webview | Quota, separate from scan | SQLite in Rust |
-| Duration bug in stats | Divided seconds by 1000 | Duration always in seconds |
-| Upstream cruft | TIDAL pages, auth, scrobble stubs | Greenfield UI, offline-only routes |
+| Concern | Brook approach |
+| ----- | --------- |
+| Playback reliability | Rust decode/output; no web audio element |
+| Music root | `$HOME/Music` via `dirs`; optional SQLite override |
+| Library reads | Metadata at scan; play reads file once in Rust |
+| Volume | Rust `set_volume` on output stream |
+| App data | SQLite in Rust; frontend invokes commands |
+| Duration/stats | Seconds end-to-end in schema and UI |
+| Scope | Offline-only routes; no streaming/auth/scrobble |
 
 ---
 
@@ -475,9 +454,9 @@ brook/
 │   ├── main.ts
 │   ├── api/
 │   ├── ui/              # library, search, entity-page, router, playlists, stats
-│   ├── player/          # bar, queue, queue-panel, lyrics, waveform, visualizer, shortcuts
+│   ├── player/          # bar, queue, queue-panel, lyrics, visualizer, shortcuts
 │   ├── settings/
-│   └── public/          # vendored Monochrome styles.css, images
+│   └── public/          # styles.css, images, assets
 ├── backend/             # Tauri 2 + Rust
 │   ├── migrations/
 │   ├── tauri.conf.json
@@ -486,7 +465,6 @@ brook/
 │       ├── scanner.rs
 │       ├── metadata.rs
 │       ├── lyrics.rs
-│       ├── waveform.rs
 │       ├── db/
 │       ├── audio/
 │       └── commands/
@@ -511,8 +489,8 @@ Tauri is configured to use `frontend/` as the web root and `backend/` as the Rus
 | `/userplaylist/:id` | Playlist detail |
 | `/settings` | Theme, visuals, music folder |
 
-In-memory **play queue** (next/prev/shuffle/repeat) lives in `frontend/player/queue.ts`; the queue modal is UI-only and does not persist to SQLite.
+In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in `frontend/player/queue.ts`; the queue modal is UI-only and does not persist to SQLite.
 
 ## Implementation status (v1)
 
-Core scaffold, playback, library, playlists, favorites, stats, lyrics, waveform, search, entity pages, queue panel, fullscreen transport, and scanner hygiene are implemented. See [overview.md](overview.md) roadmap for the checklist.
+Core scaffold, playback, library, playlists, favorites, stats, lyrics, search, entity pages, queue panel, fullscreen transport, and scanner hygiene are implemented. See [overview.md](overview.md) roadmap for the checklist.
