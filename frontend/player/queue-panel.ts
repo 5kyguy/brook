@@ -35,6 +35,9 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
     throw new Error("Missing queue modal elements");
   }
 
+  let draggedIndex: number | null = null;
+  let dragArmed = false;
+
   const open = () => {
     overlay.classList.add("open");
     refresh();
@@ -42,6 +45,63 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
 
   const close = () => {
     overlay.classList.remove("open");
+  };
+
+  const wireDragReorder = () => {
+    listEl.querySelectorAll<HTMLElement>(".queue-track-item").forEach((row) => {
+      const handle = row.querySelector<HTMLElement>(".drag-handle");
+      if (!handle) return;
+
+      handle.addEventListener("mousedown", (event) => {
+        event.stopPropagation();
+        dragArmed = true;
+        row.draggable = true;
+      });
+
+      row.addEventListener("dragstart", (event) => {
+        if (!dragArmed) {
+          event.preventDefault();
+          return;
+        }
+        draggedIndex = Number(row.dataset.queueIndex);
+        row.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", String(draggedIndex));
+        }
+      });
+
+      row.addEventListener("dragend", () => {
+        dragArmed = false;
+        row.draggable = false;
+        row.classList.remove("dragging");
+        draggedIndex = null;
+        listEl.querySelectorAll(".queue-track-item").forEach((item) => {
+          item.classList.remove("drag-over");
+        });
+      });
+
+      row.addEventListener("dragover", (event) => {
+        if (draggedIndex === null) return;
+        event.preventDefault();
+        row.classList.add("drag-over");
+      });
+
+      row.addEventListener("dragleave", () => {
+        row.classList.remove("drag-over");
+      });
+
+      row.addEventListener("drop", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        row.classList.remove("drag-over");
+        const fromIndex = draggedIndex;
+        const toIndex = Number(row.dataset.queueIndex);
+        if (fromIndex === null || Number.isNaN(toIndex) || fromIndex === toIndex) return;
+        deps.queue.reorder(fromIndex, toIndex);
+        refresh();
+      });
+    });
   };
 
   const render = () => {
@@ -65,7 +125,7 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
           <div class="queue-track-item${isPlaying ? " playing" : ""}"
                data-track-id="${escapeHtml(track.id)}"
                data-queue-index="${index}">
-            <span class="drag-handle" aria-hidden="true">
+            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">
               <use svg="!lucide/grip-vertical.svg" size="16" />
             </span>
             <div class="track-item-details">
@@ -84,6 +144,8 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
     listEl.querySelectorAll<HTMLElement>(".queue-track-item").forEach((row) => {
       row.addEventListener("click", (event) => {
         if ((event.target as HTMLElement).closest(".queue-remove-btn")) return;
+        if ((event.target as HTMLElement).closest(".drag-handle")) return;
+        if (dragArmed) return;
         const trackId = row.dataset.trackId;
         if (!trackId) return;
         const track = deps.queue.jumpTo(trackId);
@@ -101,6 +163,8 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
         refresh();
       });
     });
+
+    wireDragReorder();
   };
 
   const refresh = () => {

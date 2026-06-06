@@ -13,6 +13,7 @@ export interface PlaybackQueue {
   insertNext(track: Track): void;
   append(track: Track): void;
   remove(trackId: string): void;
+  reorder(fromIndex: number, toIndex: number): void;
   jumpTo(trackId: string): Track | null;
   clear(): void;
   toggleShuffle(): boolean;
@@ -165,6 +166,24 @@ export function createPlaybackQueue(): PlaybackQueue {
         originalTracks = [];
         tracks = [];
         currentIndex = -1;
+      }
+    },
+
+    reorder(fromIndex: number, toIndex: number) {
+      if (fromIndex === toIndex) return;
+      if (fromIndex < 0 || toIndex < 0) return;
+      if (fromIndex >= tracks.length || toIndex >= tracks.length) return;
+
+      const currentId = tracks[currentIndex]?.id;
+      const [item] = tracks.splice(fromIndex, 1);
+      tracks.splice(toIndex, 0, item);
+
+      if (currentId) {
+        currentIndex = tracks.findIndex((t) => t.id === currentId);
+      }
+
+      if (!shuffle) {
+        originalTracks = [...tracks];
       }
     },
 
