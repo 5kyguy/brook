@@ -11,7 +11,7 @@ use chrono::Utc;
 static LOG_LOCK: Mutex<()> = Mutex::new(());
 
 /// Repo-root `logs/` directory (`backend/../logs` at compile time).
-pub fn logs_dir() -> PathBuf {
+fn logs_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../logs")
 }
 
@@ -23,7 +23,7 @@ fn timestamp_rfc3339_ms() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
-pub fn enabled() -> bool {
+fn enabled() -> bool {
     cfg!(debug_assertions)
 }
 
@@ -74,7 +74,7 @@ impl Timer {
         }
     }
 
-    pub fn elapsed_ms(&self) -> u128 {
+    fn elapsed_ms(&self) -> u128 {
         self.start.elapsed().as_millis()
     }
 

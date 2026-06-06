@@ -125,23 +125,15 @@ impl Database {
         }
     }
 
-    pub fn delete_setting(&self, key: &str) -> Result<(), String> {
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
         self.conn
-            .execute("DELETE FROM app_settings WHERE key = ?1", params![key])
+            .execute(
+                "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )
             .map_err(|e| e.to_string())?;
         Ok(())
-    }
-
-    pub fn list_track_ids(&self) -> Result<Vec<String>, String> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id FROM tracks")
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())
     }
 
     pub fn get_scan_fingerprints(
@@ -542,24 +534,6 @@ impl Database {
         })
     }
 
-    pub fn update_playlist(&self, id: &str, name: Option<&str>) -> Result<Playlist, String> {
-        self.ensure_user_playlist(id)?;
-        if let Some(name) = name {
-            let now = now_ms();
-            let updated = self
-                .conn
-                .execute(
-                    "UPDATE playlists SET name = ?1, updated_at = ?2 WHERE id = ?3",
-                    params![name, now, id],
-                )
-                .map_err(|e| e.to_string())?;
-            if updated == 0 {
-                return Err(format!("Playlist not found: {id}"));
-            }
-        }
-        self.get_playlist_by_id(id)
-    }
-
     fn get_playlist_by_id(&self, id: &str) -> Result<Playlist, String> {
         self.conn
             .query_row(
@@ -584,21 +558,27 @@ impl Database {
             .map_err(|e| format!("Playlist not found: {id} ({e})"))
     }
 
+    pub fn update_playlist(&self, id: &str, name: Option<&str>) -> Result<Playlist, String> {
+        self.ensure_user_playlist(id)?;
+        if let Some(name) = name {
+            let now = now_ms();
+            let updated = self
+                .conn
+                .execute(
+                    "UPDATE playlists SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![name, now, id],
+                )
+                .map_err(|e| e.to_string())?;
+            if updated == 0 {
+                return Err(format!("Playlist not found: {id}"));
+            }
+        }
+        self.get_playlist_by_id(id)
+    }
+
     fn ensure_user_playlist(&self, id: &str) -> Result<(), String> {
         if charts::is_chart_playlist_id(id) {
             return Err("Chart playlists are updated automatically".into());
-        }
-        Ok(())
-    }
-
-    pub fn delete_playlist(&self, id: &str) -> Result<(), String> {
-        self.ensure_user_playlist(id)?;
-        let deleted = self
-            .conn
-            .execute("DELETE FROM playlists WHERE id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        if deleted == 0 {
-            return Err(format!("Playlist not found: {id}"));
         }
         Ok(())
     }
@@ -631,6 +611,18 @@ impl Database {
                 params![now_ms(), playlist_id],
             )
             .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn delete_playlist(&self, id: &str) -> Result<(), String> {
+        self.ensure_user_playlist(id)?;
+        let deleted = self
+            .conn
+            .execute("DELETE FROM playlists WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        if deleted == 0 {
+            return Err(format!("Playlist not found: {id}"));
+        }
         Ok(())
     }
 

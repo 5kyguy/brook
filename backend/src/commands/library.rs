@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 
 use tauri::{AppHandle, State};
 
@@ -41,15 +40,6 @@ pub fn set_music_root(state: State<'_, AppState>, path: String) -> Result<String
     apply_music_root(&state, canonical)
 }
 
-#[tauri::command]
-pub fn reset_music_root(state: State<'_, AppState>) -> Result<String, String> {
-    let default = paths::default_music_root()?;
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_setting("music_root")?;
-    db.reset_library_tracks()?;
-    Ok(default.to_string_lossy().into_owned())
-}
-
 fn apply_music_root(state: &State<'_, AppState>, path: PathBuf) -> Result<String, String> {
     if !path.is_dir() {
         return Err(format!("Not a folder: {}", path.display()));
@@ -65,23 +55,6 @@ fn apply_music_root(state: &State<'_, AppState>, path: PathBuf) -> Result<String
 pub fn start_library_scan(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     library_scan::spawn_background_scan(app, state.inner());
     Ok(())
-}
-
-#[tauri::command]
-pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<crate::models::ScanResult, String> {
-    if state
-        .scan_in_progress
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
-        return Err("Library scan already in progress".into());
-    }
-
-    let result = library_scan::perform_library_scan(&app, state.inner());
-    state
-        .scan_in_progress
-        .store(false, Ordering::Release);
-    result
 }
 
 #[tauri::command]

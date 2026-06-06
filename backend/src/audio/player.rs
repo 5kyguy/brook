@@ -35,7 +35,6 @@ enum AudioCommand {
     },
     Pause,
     Resume,
-    Stop,
     Seek(f64),
     SetVolume(f32),
     SetVisualizerActive(bool),
@@ -167,12 +166,6 @@ impl Engine {
             .map_err(|e| format!("Audio thread unavailable: {e}"))
     }
 
-    pub fn stop(&self) -> Result<(), String> {
-        self.cmd_tx
-            .send(AudioCommand::Stop)
-            .map_err(|e| format!("Audio thread unavailable: {e}"))
-    }
-
     pub fn seek(&self, position_secs: f64) -> Result<(), String> {
         self.cmd_tx
             .send(AudioCommand::Seek(position_secs))
@@ -278,28 +271,6 @@ fn audio_thread_main(
                         ctx.volume,
                     );
                     emit_state(&app, PlaybackStatus::Playing);
-                }
-            }
-            Ok(AudioCommand::Stop) => {
-                let track_id = ctx.track_id.clone();
-                ctx.stop_sink();
-                ctx.decoded = None;
-                ctx.track_id = None;
-                ctx.seek_base_secs = 0.0;
-                update_state(
-                    &shared_state,
-                    PlaybackStatus::Stopped,
-                    None,
-                    0.0,
-                    0.0,
-                    ctx.volume,
-                );
-                emit_state(&app, PlaybackStatus::Stopped);
-                if ctx.visualizer_active {
-                    emit_spectrum_silence(&app);
-                }
-                if let Some(id) = track_id {
-                    let _ = app.emit("playback:ended", PlaybackEndedPayload { track_id: id });
                 }
             }
             Ok(AudioCommand::Seek(position_secs)) => {

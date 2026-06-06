@@ -171,29 +171,6 @@ impl Database {
         Ok(tracks)
     }
 
-    pub fn clear_play_history(&mut self) -> Result<(), String> {
-        self.conn
-            .execute("DELETE FROM play_history", [])
-            .map_err(|e| e.to_string())?;
-        self.conn
-            .execute("DELETE FROM listening_stats", [])
-            .map_err(|e| e.to_string())?;
-        for id in [
-            super::charts::ID_WEEKLY_TOP,
-            super::charts::ID_MONTHLY_TOP,
-            super::charts::ID_QUARTERLY_TOP,
-            super::charts::ID_YEARLY_TOP,
-        ] {
-            self.conn
-                .execute(
-                    "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
-                    params![id],
-                )
-                .map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    }
-
     fn query_totals(
         &self,
         start_ms: Option<i64>,

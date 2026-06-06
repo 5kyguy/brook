@@ -28,16 +28,6 @@ pub fn is_chart_playlist_id(id: &str) -> bool {
     )
 }
 
-pub fn kind_from_id(id: &str) -> Option<PlaylistKind> {
-    match id {
-        ID_WEEKLY_TOP => Some(PlaylistKind::WeeklyTop),
-        ID_MONTHLY_TOP => Some(PlaylistKind::MonthlyTop),
-        ID_QUARTERLY_TOP => Some(PlaylistKind::QuarterlyTop),
-        ID_YEARLY_TOP => Some(PlaylistKind::YearlyTop),
-        _ => None,
-    }
-}
-
 impl Database {
     pub fn refresh_chart_playlists_if_due(&mut self) -> Result<(), String> {
         let today = Local::now().date_naive();
@@ -161,17 +151,6 @@ impl Database {
             .execute(
                 "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
                 params![super::now_ms(), playlist_id],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
-    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
-        self.conn
-            .execute(
-                "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                params![key, value],
             )
             .map_err(|e| e.to_string())?;
         Ok(())

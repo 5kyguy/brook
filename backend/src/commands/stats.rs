@@ -26,9 +26,3 @@ pub fn get_recent_tracks(state: State<'_, AppState>, limit: Option<usize>) -> Re
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_recent_tracks(limit.unwrap_or(50))
 }
-
-#[tauri::command]
-pub fn clear_play_history(state: State<'_, AppState>) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
-    db.clear_play_history()
-}

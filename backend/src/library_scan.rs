@@ -1,4 +1,4 @@
-//! Library filesystem scan (blocking). Used by sync `scan_library` and background `start_library_scan`.
+//! Library filesystem scan (blocking). Used by background `start_library_scan`.
 
 use std::path::Path;
 use std::sync::atomic::Ordering;

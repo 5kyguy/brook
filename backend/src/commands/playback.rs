@@ -36,12 +36,6 @@ pub fn resume(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn stop(state: State<'_, AppState>) -> Result<(), String> {
-    finalize_current_listen(&state);
-    state.audio.stop()
-}
-
-#[tauri::command]
 pub fn seek(state: State<'_, AppState>, position_secs: f64) -> Result<(), String> {
     state.audio.seek(position_secs)
 }

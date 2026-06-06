@@ -327,9 +327,7 @@ pub fn run() {
             commands::library::get_music_root,
             commands::library::pick_music_folder,
             commands::library::set_music_root,
-            commands::library::reset_music_root,
             commands::library::start_library_scan,
-            commands::library::scan_library,
             commands::library::get_library_facets,
             commands::library::get_tracks,
             commands::library::get_track,
@@ -348,7 +346,6 @@ pub fn run() {
             commands::playback::play_track,
             commands::playback::pause,
             commands::playback::resume,
-            commands::playback::stop,
             commands::playback::seek,
             commands::playback::set_volume,
             commands::playback::set_visualizer_active,
@@ -356,7 +353,6 @@ pub fn run() {
             commands::stats::get_stats_years,
             commands::stats::get_yearly_wrap,
             commands::stats::get_recent_tracks,
-            commands::stats::clear_play_history,
             commands::dev::dev_log_append,
         ])
         .run(tauri::generate_context!())
