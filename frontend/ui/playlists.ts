@@ -1,5 +1,7 @@
 import * as api from "../api";
 import type { Playlist, PlaylistKind, Track } from "../types";
+import { applyPlaylistCardCover, applyPlaylistDetailArtwork } from "./cover-art";
+import { showToast } from "./dom";
 import { SVG_LIST_MUSIC } from "./icons";
 import { renderTrackList } from "./track-list";
 import { wireInPageSearch } from "./search";
@@ -7,6 +9,21 @@ import type { Router } from "./router";
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function chartDescription(kind: PlaylistKind): string {
+  switch (kind) {
+    case "weeklyTop":
+      return "Your most played tracks this week.";
+    case "monthlyTop":
+      return "Your most played tracks this month.";
+    case "quarterlyTop":
+      return "Your most played tracks this quarter.";
+    case "yearlyTop":
+      return "Your most played tracks this year.";
+    default:
+      return "";
+  }
 }
 
 function createUserPlaylistCardHTML(playlist: Playlist): string {
@@ -23,6 +40,18 @@ function createUserPlaylistCardHTML(playlist: Playlist): string {
       </div>
     </div>
   `;
+}
+
+async function decoratePlaylistCard(card: HTMLElement, playlistId: string): Promise<void> {
+  try {
+    const tracks = await api.playlists.getPlaylistTracks(playlistId);
+    await applyPlaylistCardCover(
+      card,
+      tracks.slice(0, 4).map((track) => track.id),
+    );
+  } catch {
+    /* keep placeholder */
+  }
 }
 
 export interface PlaylistsController {
@@ -42,7 +71,13 @@ export function initPlaylists(
   const createCard = document.getElementById("library-create-playlist-card");
   const detailTitle = document.getElementById("playlist-detail-title");
   const detailMeta = document.getElementById("playlist-detail-meta");
+  const detailDescription = document.getElementById("playlist-detail-description");
+  const detailImage = document.getElementById("playlist-detail-image") as HTMLImageElement | null;
+  const detailCollage = document.getElementById("playlist-detail-collage");
   const detailList = document.getElementById("playlist-detail-tracklist");
+  const playPlaylistBtn = document.getElementById("play-playlist-btn");
+  const detailActions = document.querySelector("#page-playlist .detail-header-actions");
+
   if (!grid || !createCard || !detailTitle || !detailMeta || !detailList) {
     throw new Error("Missing playlist elements");
   }
@@ -85,6 +120,53 @@ export function initPlaylists(
     openCreatePlaylistModal({ openAfterCreate: true });
   });
 
+  playPlaylistBtn?.addEventListener("click", () => {
+    if (currentPlaylistTracks.length === 0) return;
+    onPlay(currentPlaylistTracks[0], currentPlaylistTracks);
+  });
+
+  function ensurePlaylistAdminButtons(isChart: boolean): void {
+    document.getElementById("playlist-rename-btn")?.remove();
+    document.getElementById("playlist-delete-btn")?.remove();
+    if (isChart || !detailActions || !currentPlaylistId) return;
+
+    const renameBtn = document.createElement("button");
+    renameBtn.id = "playlist-rename-btn";
+    renameBtn.type = "button";
+    renameBtn.className = "btn-secondary";
+    renameBtn.textContent = "Rename";
+    renameBtn.addEventListener("click", () => {
+      const playlist = playlists.find((p) => p.id === currentPlaylistId);
+      const nextName = window.prompt("Rename playlist", playlist?.name ?? "");
+      if (!nextName?.trim() || !currentPlaylistId) return;
+      void (async () => {
+        await api.playlists.updatePlaylist(currentPlaylistId!, nextName.trim());
+        await refresh();
+        await openPlaylist(currentPlaylistId!);
+      })();
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.id = "playlist-delete-btn";
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn-secondary delete-playlist-btn";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => {
+      if (!currentPlaylistId) return;
+      const playlist = playlists.find((p) => p.id === currentPlaylistId);
+      if (!window.confirm(`Delete playlist "${playlist?.name ?? "this playlist"}"?`)) return;
+      void (async () => {
+        await api.playlists.deletePlaylist(currentPlaylistId!);
+        currentPlaylistId = null;
+        await refresh();
+        router.navigate("library");
+      })();
+    });
+
+    detailActions.appendChild(renameBtn);
+    detailActions.appendChild(deleteBtn);
+  }
+
   async function refresh() {
     playlists = await api.playlists.getPlaylists();
     const charts = playlists.filter((p) => p.kind !== "user");
@@ -100,6 +182,7 @@ export function initPlaylists(
           router.openPlaylist(playlist.id);
         });
         chartGrid.appendChild(card);
+        void decoratePlaylistCard(card, playlist.id);
       }
       chartGrid.parentElement?.classList.toggle("hidden-section", charts.length === 0);
     }
@@ -113,6 +196,7 @@ export function initPlaylists(
         router.openPlaylist(playlist.id);
       });
       playlistGrid.insertBefore(card, createCard);
+      void decoratePlaylistCard(card, playlist.id);
     }
   }
 
@@ -127,6 +211,24 @@ export function initPlaylists(
     metaEl.textContent = isChart
       ? `${tracks.length} tracks · auto-updated`
       : `${tracks.length} tracks`;
+
+    if (detailDescription) {
+      if (isChart) {
+        detailDescription.textContent = chartDescription(currentPlaylistKind);
+        detailDescription.style.display = detailDescription.textContent ? "" : "none";
+      } else {
+        detailDescription.textContent = "";
+        detailDescription.style.display = "none";
+      }
+    }
+
+    await applyPlaylistDetailArtwork(
+      detailImage,
+      detailCollage,
+      tracks.slice(0, 4).map((track) => track.id),
+    );
+    ensurePlaylistAdminButtons(isChart);
+
     renderTrackList(tracksList, tracks, {
       onPlay,
       onToggleFavorite,

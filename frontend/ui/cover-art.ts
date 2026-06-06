@@ -82,3 +82,94 @@ export function setCoverImage(img: HTMLImageElement | null, trackId: string | nu
     img.src = url;
   });
 }
+
+export async function fillCoverCollage(
+  container: HTMLElement,
+  trackIds: string[],
+): Promise<void> {
+  container.replaceChildren();
+  const ids = trackIds.slice(0, 4);
+  if (ids.length === 0) return;
+
+  const urls = await Promise.all(ids.map((id) => getTrackCoverUrl(id)));
+  const isDetailCollage = container.classList.contains("detail-header-collage");
+
+  if (ids.length === 1) {
+    const img = document.createElement("img");
+    img.src = urls[0] ?? COVER_PLACEHOLDER;
+    img.alt = "";
+    container.appendChild(img);
+    return;
+  }
+
+  if (!isDetailCollage) {
+    container.classList.add("card-collage", `items-${ids.length}`);
+  }
+
+  urls.forEach((url, index) => {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = "";
+    if (ids.length === 3 && index === 0) {
+      img.style.gridRow = "span 2";
+    }
+    container.appendChild(img);
+  });
+}
+
+export async function applyPlaylistCardCover(
+  card: HTMLElement,
+  trackIds: string[],
+): Promise<void> {
+  const wrapper = card.querySelector<HTMLElement>(".card-image-wrapper");
+  if (!wrapper) return;
+
+  wrapper.querySelector(".card-collage")?.remove();
+  const img = wrapper.querySelector<HTMLImageElement>(".card-image");
+
+  if (trackIds.length === 0) {
+    if (img) img.src = COVER_PLACEHOLDER;
+    return;
+  }
+
+  if (trackIds.length === 1 && img) {
+    img.style.display = "";
+    setCoverImage(img, trackIds[0]);
+    return;
+  }
+
+  if (img) img.style.display = "none";
+  const collage = document.createElement("div");
+  collage.className = "card-collage";
+  wrapper.appendChild(collage);
+  await fillCoverCollage(collage, trackIds);
+}
+
+export async function applyPlaylistDetailArtwork(
+  imageEl: HTMLImageElement | null,
+  collageEl: HTMLElement | null,
+  trackIds: string[],
+): Promise<void> {
+  if (!imageEl || !collageEl) return;
+
+  collageEl.className = "detail-header-collage";
+  collageEl.replaceChildren();
+
+  if (trackIds.length === 0) {
+    imageEl.style.display = "";
+    collageEl.style.display = "none";
+    imageEl.src = COVER_PLACEHOLDER;
+    return;
+  }
+
+  if (trackIds.length === 1) {
+    collageEl.style.display = "none";
+    imageEl.style.display = "";
+    setCoverImage(imageEl, trackIds[0]);
+    return;
+  }
+
+  imageEl.style.display = "none";
+  collageEl.style.display = "";
+  await fillCoverCollage(collageEl, trackIds);
+}

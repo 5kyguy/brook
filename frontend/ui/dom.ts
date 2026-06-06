@@ -9,12 +9,6 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function clearChildren(node: HTMLElement): void {
-  while (node.firstChild) {
-    node.removeChild(node.firstChild);
-  }
-}
-
 export function formatDuration(secs: number): string {
   if (!Number.isFinite(secs) || secs < 0) return "0:00";
   const total = Math.floor(secs);
@@ -38,4 +32,20 @@ export function trackArtist(track: { artist: string | null }): string {
 export function trackSubtitle(track: { artist: string | null; album: string | null }): string {
   const parts = [track.artist, track.album].filter(Boolean);
   return parts.join(" · ") || "Unknown artist";
+}
+
+export function showToast(message: string, durationMs = 3200): void {
+  let toast = document.getElementById("brook-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "brook-toast";
+    toast.setAttribute("role", "status");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add("visible");
+  window.clearTimeout((showToast as { timer?: number }).timer);
+  (showToast as { timer?: number }).timer = window.setTimeout(() => {
+    toast?.classList.remove("visible");
+  }, durationMs);
 }
