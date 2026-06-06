@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches app version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app_version="$(jq -r .version backend/tauri.conf.json)"
+          if [ "$tag" != "$app_version" ]; then
+            echo "Tag version ($tag) does not match backend/tauri.conf.json ($app_version)."
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            file
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and release AppImage
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Brook ${{ github.ref_name }}
+          releaseBody: |
+            Linux AppImage for x86_64.
+
+            **Install**
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.sh | bash
+            ```
+
+            Pin a version with `BROOK_VERSION=${{ github.ref_name }}`.
+
+            **Verify**
+
+            Checksums are attached as `SHA256SUMS`.
+          releaseDraft: false
+          prerelease: false
+          projectPath: backend
+          args: --bundles appimage
+
+      - name: Publish SHA256SUMS
+        run: |
+          shopt -s nullglob
+          files=(backend/target/release/bundle/appimage/*.AppImage)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No AppImage found."
+            exit 1
+          fi
+          (
+            cd backend/target/release/bundle/appimage
+            sha256sum *.AppImage > SHA256SUMS
+          )
+          gh release upload "${GITHUB_REF_NAME}" backend/target/release/bundle/appimage/SHA256SUMS --clobber

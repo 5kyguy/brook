@@ -11,10 +11,19 @@ bun run tauri:dev
 
 Requires [Rust](https://rustup.rs/), [Bun](https://bun.sh/), and [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Put audio files in `$HOME/Music`.
 
-## Docs
+## Install (Linux)
 
-- [Overview](docs/overview.md) — features, library layout, formats, playback
-- [Architecture](docs/ARCHITECTURE.md) — ADRs, schema, IPC contract
+Requires `curl`, `jq`, and `libfuse2` (for AppImage). Installs to `~/.local/bin`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.sh | bash
+```
+
+Uninstall:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/uninstall.sh | bash
+```
 
 ## License
 
