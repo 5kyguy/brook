@@ -269,8 +269,30 @@ use tauri::Manager;
 
 use state::AppState;
 
+#[cfg(target_os = "linux")]
+fn configure_linux_webview() {
+    if std::env::var_os("APPIMAGE").is_none() {
+        return;
+    }
+
+    // AppImage on rolling distros (Arch, etc.) can crash in WebKitGPUProcess when
+    // bundled EGL libs mismatch the host Mesa stack.
+    unsafe {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if std::env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_webview() {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    configure_linux_webview();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {

@@ -95,14 +95,35 @@ verify_checksum() {
   fi
 }
 
-write_desktop_entry() {
+write_launcher() {
   local appimage_path="$1"
+  local launcher_path="${INSTALL_DIR}/brook"
+  cat >"$launcher_path" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+APPIMAGE="${appimage_path}"
+: "\${WEBKIT_DISABLE_DMABUF_RENDERER:=1}"
+: "\${WEBKIT_DISABLE_COMPOSITING_MODE:=1}"
+export WEBKIT_DISABLE_DMABUF_RENDERER WEBKIT_DISABLE_COMPOSITING_MODE
+for lib in /usr/lib/libwayland-client.so.0 /usr/lib64/libwayland-client.so.0; do
+  if [ -f "\$lib" ]; then
+    export LD_PRELOAD="\${lib}\${LD_PRELOAD:+:\$LD_PRELOAD}"
+    break
+  fi
+done
+exec "\$APPIMAGE" "\$@"
+EOF
+  chmod +x "$launcher_path"
+}
+
+write_desktop_entry() {
+  local launcher_path="$1"
   cat >"${DESKTOP_DIR}/brook.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Brook
 Comment=Offline local music player
-Exec=${appimage_path} %U
+Exec=${launcher_path} %U
 Icon=brook
 Terminal=false
 Categories=Audio;Music;Player;
@@ -146,12 +167,12 @@ main() {
     verify_checksum "$appimage_path" "$asset_name" "$tag"
   fi
 
-  ln -sf "$asset_name" "${INSTALL_DIR}/brook"
+  write_launcher "$appimage_path"
 
   echo "Installing icon..."
   curl -fsSL "$ICON_URL" -o "${ICON_DIR}/brook.png"
 
-  write_desktop_entry "$appimage_path"
+  write_desktop_entry "${INSTALL_DIR}/brook"
 
   if ! echo ":${PATH}:" | grep -q ":${INSTALL_DIR}:"; then
     echo
