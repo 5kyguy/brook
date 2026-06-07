@@ -184,6 +184,7 @@ APPIMAGE_GTK_THEME="${APPIMAGE_GTK_THEME:-"Adwaita:$GTK_THEME_VARIANT"}" # Allow
 export APPDIR="${APPDIR:-"$(dirname "$(realpath "$0")")"}" # Workaround to run extracted AppImage
 export GTK_DATA_PREFIX="$APPDIR"
 export GTK_THEME="$APPIMAGE_GTK_THEME" # Custom themes are broken
+export GDK_BACKEND=x11 # Crash with Wayland backend on Wayland - We tested it without it and ended up with this: https://github.com/tauri-apps/tauri/issues/8541
 export XDG_DATA_DIRS="$APPDIR/usr/share:/usr/share:$XDG_DATA_DIRS" # g_get_system_data_dirs() from GLib
 : "${WEBKIT_DISABLE_DMABUF_RENDERER:=1}"
 export WEBKIT_DISABLE_DMABUF_RENDERER
@@ -294,81 +295,12 @@ for (( i=0; i<${#FIND_ARRAY[@]}; i+=2 )); do
     done < <(find "$directory" \( -type l -o -type f \) -name "$library" -print0)
 done
 
-EXCLUDE_LIBRARIES=(
-    "libwayland-client.so.0"
-    "libwayland-cursor.so.0"
-    "libwayland-egl.so.1"
-    "libwayland-server.so.0"
-    "libudev.so.1"
-    "libsystemd.so.0"
-    "libcap.so.2"
-    "libdbus-1.so.3"
-    "libvulkan.so.1"
-    "libva.so.2"
-    "libva-drm.so.2"
-    "libva-x11.so.2"
-    "libvdpau.so.1"
-    "libdrm.so.2"
-    "libselinux.so.1"
-    "libapparmor.so.1"
-    "libseccomp.so.2"
-    "libacl.so.1"
-    "libkeyutils.so.1"
-    "libgudev-1.0.so.0"
-    "libmount.so.1"
-    "libblkid.so.1"
-    "libcups.so.2"
-    "libssl.so.3"
-    "libcrypto.so.3"
-    "libkrb5.so.3"
-    "libkrb5support.so.0"
-    "libgssapi_krb5.so.2"
-    "libk5crypto.so.3"
-    "libXau.so.6"
-    "libXcomposite.so.1"
-    "libXcursor.so.1"
-    "libXdamage.so.1"
-    "libXdmcp.so.6"
-    "libXext.so.6"
-    "libXfixes.so.3"
-    "libXinerama.so.1"
-    "libXi.so.6"
-    "libXpresent.so.1"
-    "libXrandr.so.2"
-    "libXrender.so.1"
-    "libXss.so.1"
-    "libXv.so.1"
-    "libxcb-render.so.0"
-    "libxcb-shape.so.0"
-    "libxcb-shm.so.0"
-    "libxcb-xfixes.so.0"
-)
-EXCLUDE_ARGS=()
-for library in "${EXCLUDE_LIBRARIES[@]}"; do
-    EXCLUDE_ARGS+=( "--exclude-library=$library" )
-done
+env LINUXDEPLOY_PLUGIN_MODE=1 "$LINUXDEPLOY" --appdir="$APPDIR" "${LIBRARIES[@]}"
 
-echo "Removing excluded Wayland libraries from AppDir before linuxdeploy"
-for library in "${EXCLUDE_LIBRARIES[@]}"; do
-    while IFS= read -r -d '' file; do
-        rm -f "$file"
-        echo "Removed: $file"
-    done < <(find "$APPDIR" \( -type f -o -type l \) -name "$library" -print0 2>/dev/null)
-done
-
-jack_library="$(find /usr/lib* \( -type f -o -type l \) -name 'libjack.so.0' 2>/dev/null | head -n 1)"
-if [ -n "$jack_library" ]; then
-    echo "Including JACK runtime library: $jack_library"
-    LIBRARIES+=( "--library=$jack_library" )
-else
-    echo "WARNING: libjack.so.0 not found on host; AppImage may fail on systems without JACK runtime"
-fi
-
-env LINUXDEPLOY_PLUGIN_MODE=1 "$LINUXDEPLOY" --appdir="$APPDIR" "${EXCLUDE_ARGS[@]}" "${LIBRARIES[@]}"
-
-echo "Removing host GPU libs bundled into AppDir (use system EGL/Mesa at runtime)"
-find "$APPDIR/usr/lib" -maxdepth 1 \( \
-    -name 'libEGL.so*' -o -name 'libEGL_mesa.so*' \
+# Use host GPU/Wayland stack on rolling distros (Arch, etc.) instead of Ubuntu-bundled EGL libs.
+find "$APPDIR/usr/lib" \( -type f -o -type l \) \( \
+    -name 'libwayland-*.so*' \
+    -o -name 'libEGL.so*' -o -name 'libEGL_mesa.so*' \
     -o -name 'libGLESv2.so*' -o -name 'libgbm.so*' \
 \) -delete 2>/dev/null || true
 

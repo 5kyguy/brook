@@ -12,7 +12,7 @@
     "clean:build": "./scripts/clean-dev.sh --build-only",
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config backend/tauri.conf.json",
-    "tauri:build": "mkdir -p ~/.cache/tauri && cp scripts/linuxdeploy-plugin-gtk.sh ~/.cache/tauri/linuxdeploy-plugin-gtk.sh && tauri build --config backend/tauri.conf.json",
+    "tauri:build": "mkdir -p ~/.cache/tauri && cp scripts/linuxdeploy-plugin-gtk.sh ~/.cache/tauri/linuxdeploy-plugin-gtk.sh && chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh && tauri build --config backend/tauri.conf.json",
     "icons": "tauri icon backend/app-icon.png -o backend/icons && cp backend/icons/128x128@2x.png frontend/public/assets/appicon.png && cp backend/icons/32x32.png frontend/public/assets/favicon.png"
   },
   "dependencies": {
