@@ -1,4 +1,3 @@
-import { initThemeSettings } from "./theme";
 import { initVisualSettings } from "./visual";
 import * as api from "../api";
 
@@ -6,7 +5,6 @@ export function initSettingsPage(
   onRescan: () => Promise<void>,
   onMusicRootChanged: () => Promise<void>,
 ): void {
-  initThemeSettings();
   initVisualSettings();
 
   const statusEl = document.getElementById("settings-music-root-status");

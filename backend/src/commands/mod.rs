@@ -5,3 +5,4 @@ pub mod favorites;
 pub mod playlists;
 pub mod playback;
 pub mod stats;
+pub mod theme;

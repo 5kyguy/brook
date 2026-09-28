@@ -11,7 +11,7 @@ import { initRecentPage } from "./ui/recent";
 import { initSettingsPage } from "./settings/settings";
 import { setCurrentTrackForVisuals } from "./settings/visual-effects";
 import { initStatsPage } from "./ui/stats";
-import { loadStoredTheme } from "./settings/theme";
+import { initSharedTheme } from "./settings/shared-theme";
 import { initEntityPages, initTrackContextMenu } from "./ui/entity-page";
 import {
   initLibraryPage,
@@ -33,7 +33,7 @@ async function boot(): Promise<void> {
   logStartupHint();
   const bootTimer = new DevTimer("boot", "boot()");
 
-  loadStoredTheme();
+  await initSharedTheme();
   initAppShell();
   ensureCreatePlaylistCardArt();
   bootTimer.step("theme + shell");

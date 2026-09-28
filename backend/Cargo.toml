@@ -5,6 +5,9 @@ description = "Offline local music player"
 authors = ["sky"]
 edition = "2021"
 
+[workspace]
+members = ["theme"]
+
 [lib]
 name = "brook_lib"
 crate-type = ["lib", "cdylib"]
@@ -15,6 +18,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+brook-theme = { path = "theme" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 walkdir = "2"

@@ -4,38 +4,17 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <title>Brook</title>
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#0a0a0a" />
         <base href="./" />
         <link rel="icon" href="./assets/favicon.png" type="image/png" />
         <script>
             (() => {
                 try {
-                    const theme = localStorage.getItem('brook-theme');
-                    const css = localStorage.getItem('custom_theme_css');
-                    const palette = localStorage.getItem('brook-custom-theme');
-                    if (!theme) return;
-
-                    document.documentElement.setAttribute('data-theme', theme);
-
-                    if (theme === 'custom') {
-                        if (css) {
-                            let styleEl = document.getElementById('custom-theme-style');
-                            if (!styleEl) {
-                                styleEl = document.createElement('style');
-                                styleEl.id = 'custom-theme-style';
-                                document.head.appendChild(styleEl);
-                            }
-                            styleEl.textContent = css;
-                        } else if (palette) {
-                            const colors = JSON.parse(palette);
-                            const root = document.documentElement;
-                            for (const [key, value] of Object.entries(colors)) {
-                                root.style.setProperty(`--${key}`, value);
-                            }
-                        }
-                    }
+                    localStorage.removeItem('brook-theme');
+                    localStorage.removeItem('brook-custom-theme');
+                    localStorage.removeItem('custom_theme_css');
                 } catch (e) {
-                    console.error('theme loading failed', e);
+                    console.error('theme migration failed', e);
                 }
             })();
         </script>
@@ -126,7 +105,7 @@
                 <div class="sidebar-content">
                     <div class="sidebar-logo">
                         <a href="/library" class="sidebar-logo-link">
-                            <img src="./assets/appicon.png" alt="" class="app-logo" width="15" height="15" />
+                            <img src="./assets/appicon.png" alt="" class="app-logo" width="32" height="32" />
                             <span>Brook</span>
                         </a>
                         <button
@@ -422,6 +401,7 @@
                 </section>
                 <div id="page-about" class="page">
                     <div class="about-content">
+                        <img src="./assets/appicon.png" alt="" class="about-mark" width="64" height="64" />
                         <h2 class="section-title">About Brook</h2>
                         <p class="about-description">
                             Brook is a fully offline desktop music player. It reads audio from your music library on
@@ -454,12 +434,12 @@
                                     <div class="info">
                                         <span class="label">Dynamic Colors</span>
                                         <span class="description"
-                                            >Automatically change the app accent color based on the currently playing
-                                            track's album art</span
+                                            >Use the current track's album art as the accent. Off follows the desktop
+                                            accent.</span
                                         >
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="dynamic-color-toggle" checked />
+                                        <input type="checkbox" id="dynamic-color-toggle" />
                                         <span class="slider"></span>
                                     </label>
                                 </div>
@@ -475,21 +455,6 @@
                                 </div>
                             </div>
 
-                            <div class="settings-group" id="settings-theme-group">
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Theme</span>
-                                        <span class="description">Choose your preferred color scheme</span>
-                                    </div>
-                                </div>
-                                <div class="theme-picker" id="theme-picker">
-                                    <div class="theme-option" data-theme="black">Black</div>
-                                    <div class="theme-option" data-theme="white">White</div>
-                                    <div class="theme-option" data-theme="ocean">Ocean</div>
-                                    <div class="theme-option" data-theme="purple">Purple</div>
-                                    <div class="theme-option" data-theme="forest">Forest</div>
-                                </div>
-                            </div>
                     </div>
                 </div>
             </main>

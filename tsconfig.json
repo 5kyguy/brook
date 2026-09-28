@@ -10,5 +10,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["frontend/**/*.ts", "frontend/global.d.ts"],
-  "exclude": ["frontend/vite-plugin-svg-use.ts"]
+  "exclude": ["frontend/vite-plugin-svg-use.ts", "frontend/**/*.test.ts"]
 }

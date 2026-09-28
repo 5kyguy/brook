@@ -141,7 +141,7 @@ flowchart TB
 
 **Status:** Accepted
 
-**Decision:** Settings page covers theme, dynamic colors, shortcuts reference, and music folder controls. Persist UI prefs in `localStorage`. Hardcode playback behavior in Rust — no EQ/gapless/replay-gain UI.
+**Decision:** Settings keep the track-based Dynamic Color toggle, shortcuts reference, and music folder controls. The manual theme picker is gone. Accent color comes from the local R2-D2 theme document, with bundled monochrome when that document is missing or invalid. Persist the Dynamic Color preference in `localStorage`. Hardcode playback behavior in Rust — no EQ/gapless/replay-gain UI.
 
 ---
 
@@ -322,6 +322,7 @@ CREATE TABLE app_settings (
 | `get_yearly_wrap` | `year: i32` | `YearlyWrap` | Calendar-year stats |
 | `get_recent_tracks` | `limit?: number` | `Track[]` | Recent play history (default 50) |
 | `read_lyrics` | `track_id: string` | `LyricsResult` | `{ source, text }` |
+| `get_shared_theme` | — | `SharedTheme` | Valid local theme, or bundled monochrome when the file is missing or invalid |
 
 ### Events (emit to frontend)
 
@@ -336,6 +337,7 @@ CREATE TABLE app_settings (
 | `playback:ended` | `{ track_id }` | Natural end or stop |
 | `db:favorites-changed` | `{ track_id, liked: bool }` | Like toggled |
 | `db:playlists-changed` | `{ playlist_id? }` | Playlist CRUD |
+| `theme:changed` | `SharedTheme` | Local theme file replaced, removed, or rejected |
 
 ### Shared types (serde, camelCase in JSON)
 
@@ -385,6 +387,19 @@ interface TrackFilter {
   query?: string;
   sortBy?: "title" | "artist" | "album" | "year" | "dateAdded";
   sortOrder?: "asc" | "desc";
+}
+
+interface SharedTheme {
+  available: boolean;
+  revision: string;
+  accent: {
+    source: string;
+    text: string;
+    border: string;
+    control: string;
+    onControl: string;
+    rgb: string;
+  };
 }
 ```
 

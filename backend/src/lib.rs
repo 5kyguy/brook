@@ -264,6 +264,7 @@ pub mod dev_log;
 pub mod library_scan;
 pub mod playback_session;
 pub mod state;
+pub mod theme;
 
 use tauri::Manager;
 
@@ -314,6 +315,7 @@ pub fn run() {
             db_timer.finish(format!("db_path={}", db_path.display()));
 
             app.manage(AppState::new(db, app.handle().clone(), covers_dir));
+            commands::theme::install(app.handle())?;
             setup_timer.log_step("AppState ready");
 
             let app_handle = app.handle().clone();
@@ -376,6 +378,7 @@ pub fn run() {
             commands::stats::get_yearly_wrap,
             commands::stats::get_recent_tracks,
             commands::dev::dev_log_append,
+            commands::theme::get_shared_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
