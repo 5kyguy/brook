@@ -111,7 +111,7 @@ for lib in /usr/lib/libwayland-client.so.0 /usr/lib64/libwayland-client.so.0; do
     break
   fi
 done
-exec "\$APPIMAGE" "\$@"
+exec "\$APPIMAGE" "\"
 EOF
   chmod +x "$launcher_path"
 }
@@ -186,4 +186,4 @@ main() {
   echo "Uninstall with: curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/uninstall.sh | bash"
 }
 
-main "$@"
+main ""
