@@ -3,32 +3,38 @@ use std::f32::consts::PI;
 use num_complex::Complex;
 use rustfft::FftPlanner;
 
-use super::decode::DecodedAudio;
-
 pub const DEFAULT_BIN_COUNT: usize = 64;
 const FFT_SIZE: usize = 2048;
 
-/// Magnitude spectrum bins (0..1) from PCM around `position_secs`.
-pub fn compute_spectrum(decoded: &DecodedAudio, position_secs: f64, bin_count: usize) -> Vec<f32> {
+/// Magnitude spectrum bins (0..1) from a window of interleaved PCM samples.
+///
+/// `samples` is interleaved stereo (or mono) output, most recent first. The
+/// caller passes the tail kept by the streaming decoder so the spectrum
+/// reflects what is currently playing, without holding the whole track.
+pub fn compute_spectrum_from_samples(
+    samples: &[f32],
+    channels: u16,
+    sample_rate: u32,
+    bin_count: usize,
+) -> Vec<f32> {
     let bin_count = bin_count.clamp(8, 128);
-    if decoded.sample_rate == 0 || decoded.channels == 0 || decoded.samples.is_empty() {
+    if sample_rate == 0 || channels == 0 || samples.is_empty() {
         return vec![0.0; bin_count];
     }
 
-    let channels = decoded.channels as usize;
-    let sample_rate = decoded.sample_rate as f64;
-    let center_frame = (position_secs * sample_rate).floor() as usize;
-    let half = FFT_SIZE / 2;
-    let start_frame = center_frame.saturating_sub(half);
+    let channels = channels as usize;
+    // Take the last FFT_SIZE frames (most recent are at the tail).
+    let total_frames = samples.len() / channels;
+    let start_frame = total_frames.saturating_sub(FFT_SIZE);
+    let start_sample = start_frame * channels;
 
     let mut window = vec![0.0f32; FFT_SIZE];
     for i in 0..FFT_SIZE {
-        let frame = start_frame + i;
-        let base = frame * channels;
-        if base + channels <= decoded.samples.len() {
+        let base = start_sample + i * channels;
+        if base + channels <= samples.len() {
             let mut sum = 0.0f32;
             for ch in 0..channels {
-                sum += decoded.samples[base + ch];
+                sum += samples[base + ch];
             }
             let sample = sum / channels as f32;
             let hann = 0.5 * (1.0 - (2.0 * PI * i as f32 / FFT_SIZE as f32).cos());
@@ -81,7 +87,6 @@ fn normalize_bins(bins: &mut [f32]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::decode::DecodedAudio;
 
     #[test]
     fn sine_produces_non_zero_spectrum() {
@@ -94,13 +99,7 @@ mod tests {
             let t = i as f32 / sample_rate as f32;
             samples.push((t * freq * 2.0 * PI).sin() * 0.8);
         }
-        let decoded = DecodedAudio {
-            file_bytes: Vec::new(),
-            samples,
-            sample_rate,
-            channels: 1,
-        };
-        let bins = compute_spectrum(&decoded, 0.5, DEFAULT_BIN_COUNT);
+        let bins = compute_spectrum_from_samples(&samples, 1, sample_rate, DEFAULT_BIN_COUNT);
         assert_eq!(bins.len(), DEFAULT_BIN_COUNT);
         assert!(bins.iter().copied().fold(0.0f32, f32::max) > 0.2);
     }

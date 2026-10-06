@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, State};
 
-use crate::cover_art::{self, AlbumArtPayload};
+use crate::cover_art::{self, AlbumArtBatchItem, AlbumArtPayload};
 use crate::library_scan;
 use crate::models::{LibraryFacets, Track, TrackFilter};
 use crate::paths;
@@ -73,6 +73,34 @@ pub fn get_tracks(
 }
 
 #[tauri::command]
+pub fn get_tracks_page(
+    state: State<'_, AppState>,
+    filter: Option<TrackFilter>,
+) -> Result<crate::models::TracksPage, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let filter = filter.unwrap_or_default();
+    let total = db.get_tracks_count(Some(&filter))?;
+    let tracks = db.get_tracks(Some(&filter))?;
+    let limit = filter.limit.unwrap_or(0).max(0) as usize;
+    let offset = filter.offset.unwrap_or(0).max(0) as usize;
+    Ok(crate::models::TracksPage {
+        tracks,
+        total,
+        offset,
+        limit,
+    })
+}
+
+#[tauri::command]
+pub fn get_tracks_count(
+    state: State<'_, AppState>,
+    filter: Option<TrackFilter>,
+) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_tracks_count(filter.as_ref())
+}
+
+#[tauri::command]
 pub fn get_track(state: State<'_, AppState>, id: String) -> Result<Track, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_track(&id)
@@ -87,4 +115,51 @@ pub fn get_album_art(state: State<'_, AppState>, id: String) -> Result<Option<Al
         Path::new(&row.absolute_path),
         &row.id,
     )
+}
+
+#[tauri::command]
+pub fn get_album_art_thumb(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<AlbumArtPayload>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let row = db.get_track_row(&id)?;
+    cover_art::get_cover_thumb(
+        &state.covers_dir,
+        Path::new(&row.absolute_path),
+        &row.id,
+    )
+}
+
+/// Resolve list thumbnails for many track ids in one IPC round-trip. Returns
+/// the small thumb for each id (or `None` where no cover exists). Rows are
+/// read under the db lock in one pass, then thumbnails are generated without
+/// the lock so a slow first-request resize does not block other commands.
+#[tauri::command]
+pub fn get_album_art_batch(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<AlbumArtBatchItem>, String> {
+    use std::collections::HashMap;
+
+    let paths: HashMap<String, String> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let mut map = HashMap::with_capacity(ids.len());
+        for id in &ids {
+            if let Ok(row) = db.get_track_row(id) {
+                map.insert(id.clone(), row.absolute_path);
+            }
+        }
+        map
+    };
+
+    let mut out = Vec::with_capacity(ids.len());
+    for id in ids {
+        let art = paths
+            .get(&id)
+            .and_then(|path| cover_art::get_cover_thumb(&state.covers_dir, Path::new(path), &id).ok())
+            .flatten();
+        out.push(AlbumArtBatchItem { id, art });
+    }
+    Ok(out)
 }

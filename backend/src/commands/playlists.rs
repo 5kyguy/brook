@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Emitter, State};
 
-use crate::models::{Playlist, PlaylistsChangedPayload, Track};
+use crate::models::{Playlist, PlaylistsChangedPayload, SmartPlaylistConfig, Track};
 use crate::state::AppState;
 
 fn emit_playlists_changed(app: &AppHandle, playlist_id: Option<String>) {
@@ -37,6 +37,46 @@ pub fn create_playlist(
     };
     emit_playlists_changed(&app, Some(playlist.id.clone()));
     Ok(playlist)
+}
+
+#[tauri::command]
+pub fn create_smart_playlist(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+    config: SmartPlaylistConfig,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.create_smart_playlist(&name, &config)?
+    };
+    emit_playlists_changed(&app, Some(playlist.id.clone()));
+    Ok(playlist)
+}
+
+#[tauri::command]
+pub fn update_smart_playlist(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    name: Option<String>,
+    config: Option<SmartPlaylistConfig>,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.update_smart_playlist(&id, name.as_deref(), config.as_ref())?
+    };
+    emit_playlists_changed(&app, Some(id));
+    Ok(playlist)
+}
+
+#[tauri::command]
+pub fn get_smart_playlist_config(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<SmartPlaylistConfig>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_smart_playlist_config(&id)
 }
 
 #[tauri::command]

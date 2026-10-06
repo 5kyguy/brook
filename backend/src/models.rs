@@ -18,6 +18,17 @@ pub struct Track {
     pub is_favorite: bool,
 }
 
+/// One page of tracks plus the total row count for the same filter, so the
+/// list can render a page and a scroll sentinel without re-querying.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TracksPage {
+    pub tracks: Vec<Track>,
+    pub total: usize,
+    pub offset: usize,
+    pub limit: usize,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackFilter {
@@ -27,6 +38,12 @@ pub struct TrackFilter {
     pub query: Option<String>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
+    /// Page size. When `None`, `get_tracks` returns the whole result set (the
+    /// legacy path used by search, entity pages, and anywhere that wants all
+    /// rows). When `Some`, the query gets a `LIMIT ? OFFSET ?`.
+    pub limit: Option<i64>,
+    /// Row offset for paged queries. Ignored when `limit` is `None`.
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +93,7 @@ pub struct Playlist {
 #[serde(rename_all = "camelCase")]
 pub enum PlaylistKind {
     User,
+    Smart,
     WeeklyTop,
     MonthlyTop,
     QuarterlyTop,
@@ -85,6 +103,7 @@ pub enum PlaylistKind {
 impl PlaylistKind {
     pub fn from_db_str(value: &str) -> Self {
         match value {
+            "smart" => Self::Smart,
             "weekly_top" => Self::WeeklyTop,
             "monthly_top" => Self::MonthlyTop,
             "quarterly_top" => Self::QuarterlyTop,
@@ -96,6 +115,7 @@ impl PlaylistKind {
     pub fn as_db_str(self) -> &'static str {
         match self {
             Self::User => "user",
+            Self::Smart => "smart",
             Self::WeeklyTop => "weekly_top",
             Self::MonthlyTop => "monthly_top",
             Self::QuarterlyTop => "quarterly_top",
@@ -104,8 +124,38 @@ impl PlaylistKind {
     }
 
     pub fn is_chart(self) -> bool {
-        !matches!(self, Self::User)
+        !matches!(self, Self::User | Self::Smart)
     }
+}
+
+/// One rule in a smart playlist. `value` is stored as a string and parsed
+/// per `field`/`op` when the playlist is evaluated against SQLite.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartPlaylistRule {
+    pub field: String,
+    pub op: String,
+    pub value: String,
+}
+
+/// A smart playlist's saved configuration: the rule set, sort, and optional
+/// row limit. Evaluated as a live SQLite query, never a cached track copy.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartPlaylistConfig {
+    pub rules: Vec<SmartPlaylistRule>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+    pub limit: Option<i64>,
+}
+
+/// Saved playback position so the next launch can resume where the last one
+/// left off. `track_id` is `None` when playback is stopped (nothing to resume).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResumeState {
+    pub track_id: Option<String>,
+    pub position_secs: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,7 +227,7 @@ pub struct YearlyWrap {
     pub top_year: Option<RankedYear>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PlaybackStatus {
     Playing,
@@ -220,13 +270,13 @@ pub struct ScanCompletePayload {
     pub track_count: usize,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub struct PlaybackStatePayload {
     pub status: PlaybackStatus,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackPositionPayload {
     pub position_secs: f64,
@@ -237,6 +287,12 @@ pub struct PlaybackPositionPayload {
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackEndedPayload {
     pub track_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackAdvancedPayload {
+    pub track: Track,
 }
 
 #[derive(Debug, Clone, Serialize)]

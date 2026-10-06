@@ -141,6 +141,10 @@ pub mod metadata {
         pub year: Option<i32>,
         pub duration_secs: Option<f64>,
         pub embedded_lyrics: Option<String>,
+        /// ReplayGain track gain in dB (e.g. -7.43 means reduce by 7.43 dB).
+        pub replay_gain_track_db: Option<f64>,
+        /// ReplayGain track peak amplitude (0..1), used to clamp the applied gain.
+        pub replay_gain_track_peak: Option<f64>,
     }
 
     pub fn read_metadata(path: &Path) -> Result<TrackMetadata, String> {
@@ -170,6 +174,7 @@ pub mod metadata {
             meta.genre = tag.genre().map(|s| s.to_string());
             meta.year = tag.year().map(|y| y as i32);
             meta.embedded_lyrics = extract_embedded_lyrics(tag);
+            extract_replaygain(tag, &mut meta);
         }
 
         if meta.title.is_none() {
@@ -197,6 +202,34 @@ pub mod metadata {
             }
         }
         None
+    }
+
+    /// Read read-only ReplayGain tags (REPLAYGAIN_TRACK_GAIN / REPLAYGAIN_TRACK_PEAK)
+    /// from any tag format lofty exposes. Values look like "-7.43 dB" or "0.98123";
+    /// we parse the leading numeric token.
+    fn extract_replaygain(tag: &lofty::tag::Tag, meta: &mut TrackMetadata) {
+        for item in tag.items() {
+            let lofty::tag::ItemValue::Text(text) = item.value() else {
+                continue;
+            };
+            let key = format!("{:?}", item.key()).to_lowercase();
+            let key = key.replace('_', "");
+            let value = match parse_replaygain_value(text) {
+                Some(v) => v,
+                None => continue,
+            };
+            if key.contains("replaygaintrackgain") {
+                meta.replay_gain_track_db = Some(value);
+            } else if key.contains("replaygaintrackpeak") {
+                meta.replay_gain_track_peak = Some(value);
+            }
+        }
+    }
+
+    fn parse_replaygain_value(text: &str) -> Option<f64> {
+        text.split_whitespace()
+            .next()
+            .and_then(|token| token.parse::<f64>().ok())
     }
 }
 
@@ -295,6 +328,17 @@ fn configure_linux_webview() {}
 pub fn run() {
     configure_linux_webview();
     tauri::Builder::default()
+        // Single-instance guard: a second launch hands its argv to the
+        // running window and exits. Registered first so it can short-circuit
+        // before setup runs. A later CLI can sit on the same channel.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Bring the running window forward.
+            if let Some(window) = app.webview_windows().values().next() {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let setup_timer = dev_log::Timer::new("setup", "tauri setup");
@@ -314,7 +358,17 @@ pub fn run() {
             let db = db::Database::open(&db_path)?;
             db_timer.finish(format!("db_path={}", db_path.display()));
 
-            app.manage(AppState::new(db, app.handle().clone(), covers_dir));
+            #[cfg(target_os = "linux")]
+            let mpris_handle = {
+                let mpris_timer = dev_log::Timer::new("setup", "MPRIS launch");
+                let handle = crate::audio::mpris::launch(app.handle().clone(), covers_dir.clone());
+                mpris_timer.finish("registered");
+                Some(handle)
+            };
+            #[cfg(not(target_os = "linux"))]
+            let mpris_handle: Option<()> = None;
+
+            app.manage(AppState::new(db, app.handle().clone(), covers_dir, mpris_handle));
             commands::theme::install(app.handle())?;
             setup_timer.log_step("AppState ready");
 
@@ -354,25 +408,39 @@ pub fn run() {
             commands::library::start_library_scan,
             commands::library::get_library_facets,
             commands::library::get_tracks,
+            commands::library::get_tracks_page,
+            commands::library::get_tracks_count,
             commands::library::get_track,
             commands::library::get_album_art,
+            commands::library::get_album_art_thumb,
+            commands::library::get_album_art_batch,
             commands::lyrics::read_lyrics,
             commands::favorites::toggle_favorite,
             commands::favorites::get_favorites,
             commands::playlists::get_playlists,
             commands::playlists::get_playlist_tracks,
             commands::playlists::create_playlist,
+            commands::playlists::create_smart_playlist,
+            commands::playlists::update_smart_playlist,
+            commands::playlists::get_smart_playlist_config,
             commands::playlists::update_playlist,
             commands::playlists::delete_playlist,
             commands::playlists::add_to_playlist,
             commands::playlists::remove_from_playlist,
             commands::playback::get_playback_state,
+            commands::playback::get_resume_state,
+            commands::playback::save_resume_state,
+            commands::playback::load_track_paused,
             commands::playback::play_track,
+            commands::playback::set_upcoming_track,
             commands::playback::pause,
             commands::playback::resume,
             commands::playback::seek,
             commands::playback::set_volume,
             commands::playback::set_visualizer_active,
+            commands::playback::stop,
+            #[cfg(target_os = "linux")]
+            commands::playback::set_mpris_controls,
             commands::stats::get_stats,
             commands::stats::get_stats_years,
             commands::stats::get_yearly_wrap,

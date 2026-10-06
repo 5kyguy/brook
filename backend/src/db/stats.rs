@@ -237,6 +237,8 @@ impl Database {
                 has_lrc: row.get::<_, i32>(15).map_err(|e| e.to_string())? != 0,
                 lrc_path: row.get::<_, Option<String>>(16).map_err(|e| e.to_string())?,
                 embedded_lyrics: row.get::<_, Option<String>>(17).map_err(|e| e.to_string())?,
+                replay_gain_track_db: None,
+                replay_gain_track_peak: None,
             };
             let is_favorite = self.is_favorite(&track_row.id)?;
             out.push(RankedTrack {
