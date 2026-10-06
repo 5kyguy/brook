@@ -1,3 +1,5 @@
+declare const __BROOK_VERSION__: string;
+
 declare module "*?svg&icon" {
   const icon: (size?: number, attrs?: Record<string, string>) => string;
   export default icon;

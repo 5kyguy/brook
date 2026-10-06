@@ -21,6 +21,8 @@ curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.s
 
 Uninstall with `brook --uninstall`. That removes the AppImage, the `brook` command, the desktop entry, and the icon. The music folder and listening history stay.
 
+Update an AppImage install with `brook --update`. That downloads the latest GitHub release, points `brook` at it, and quits a running player. Playlists, likes, and the music folder stay.
+
 You can remove the cache (listening history and cover art) with `brook --uninstall --clear-history`. Playlists, likes, and the music folder stay.
 
 `brook --headless` starts playback with no window. `brook --quit` stops that process. A later `brook` opens the window on the running session.

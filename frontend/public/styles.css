@@ -4242,6 +4242,16 @@ input:checked + .slider::before {
     font-weight: 600;
 }
 
+.about-footer a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.about-footer a:hover {
+    color: var(--highlight);
+}
+
 .about-footer .license {
     color: var(--muted-foreground);
 }

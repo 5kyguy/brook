@@ -84,7 +84,7 @@ Playback state reaches the UI through Tauri events (position, state, track chang
 
 On Linux, playback is published on MPRIS so media keys, `playerctl`, and a bar widget can observe and control it. The play queue (order, shuffle, repeat, next, and previous) lives in the Rust session, so those controls work with no window. Play, pause, seek, volume, and stop call the engine directly. The session tells the engine which track to preload.
 
-`brook --headless` starts that session without a window and restores the saved track paused. A later normal launch opens the window on the same process. Closing that window hides it and leaves playback running. `brook --quit` stops the process. `brook --uninstall` removes an AppImage install (the bundle, launcher, desktop entry, and icon) and leaves the music folder and library database in place. `brook --uninstall --clear-history` also removes listening history and cached cover art. Playlists and likes stay. A launch without `--headless` still quits when its window closes.
+`brook --headless` starts that session without a window and restores the saved track paused. A later normal launch opens the window on the same process. Closing that window hides it and leaves playback running. `brook --quit` stops the process. `brook --update` replaces an AppImage install with the latest GitHub release and leaves the music folder and library database in place. `brook --uninstall` removes an AppImage install (the bundle, launcher, desktop entry, and icon) and leaves the music folder and library database in place. `brook --uninstall --clear-history` also removes listening history and cached cover art. Playlists and likes stay. A launch without `--headless` still quits when its window closes.
 
 ## Large libraries
 

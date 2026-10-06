@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+### Install
+
+- `brook --update` replaces the AppImage with the latest GitHub release and leaves the library in place
+
+### Appearance
+
+- The about page shows the current version, the repository, and a link on the name
+
 ## 0.1.2
 
 ### Playback

@@ -80,6 +80,8 @@ jobs:
 
             `brook --uninstall`
 
+            Update an existing install with `brook --update`.
+
             Remove listening history and cached covers with `brook --uninstall --clear-history`.
 
             **Verify**

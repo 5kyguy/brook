@@ -344,15 +344,22 @@ pub fn run() {
         }
         return;
     }
+    if arg_flag("--update") {
+        if let Err(error) = update() {
+            eprintln!("brook: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     tauri::Builder::default()
         // Single-instance guard: a second launch hands its argv to the
-        // running process and exits. `--search` never reaches this plugin.
-        // Play flags run here and do not open a window. `--headless` alone
-        // is a no-op when a session is already up. A normal launch opens the
-        // window. `--quit` and `--uninstall` exit. File removal for
-        // `--uninstall` already happened in this process, before the builder
-        // started.
+        // running process and exits. `--search` and `--update` never reach
+        // this plugin. Play flags run here and do not open a window.
+        // `--headless` alone is a no-op when a session is already up. A
+        // normal launch opens the window. `--quit` and `--uninstall` exit.
+        // File removal for `--uninstall` already happened in this process,
+        // before the builder started.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // The D-Bus callback is not the GTK thread. Window creation has to
             // hop to the main thread.
@@ -589,6 +596,276 @@ fn apply_play_argv(app: &tauri::AppHandle, argv: &[String]) -> bool {
     true
 }
 
+const RELEASE_REPO: &str = "5kyguy/brook";
+
+/// Replace this AppImage with the latest GitHub release. The library stays.
+/// A running player is asked to quit. The mounted file is deleted after it exits.
+fn update() -> Result<(), String> {
+    let current = std::env::var_os("APPIMAGE")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_file())
+        .ok_or_else(|| {
+            "this copy was not installed as an AppImage, so it cannot update itself".to_string()
+        })?;
+    let install_dir = current
+        .parent()
+        .ok_or_else(|| format!("could not find the folder for {}", current.display()))?;
+
+    println!("Checking for a Brook update...");
+    let release = fetch_latest_release()?;
+    let latest = release.tag_name.trim();
+    match cmp_versions(env!("CARGO_PKG_VERSION"), latest) {
+        Some(std::cmp::Ordering::Equal) => {
+            println!("Brook {latest} is already current.");
+            return Ok(());
+        }
+        Some(std::cmp::Ordering::Greater) => {
+            println!(
+                "This build ({}) is newer than the latest release ({latest}).",
+                env!("CARGO_PKG_VERSION")
+            );
+            return Ok(());
+        }
+        Some(std::cmp::Ordering::Less) => {}
+        None => {
+            return Err(format!("could not compare versions with {latest}"));
+        }
+    }
+
+    let arch = appimage_arch()?;
+    let asset = release_asset(&release.assets, arch)?;
+    let dest = install_dir.join(&asset.name);
+    if dest == current {
+        println!("Brook {latest} is already current.");
+        return Ok(());
+    }
+
+    println!("Downloading Brook {latest}...");
+    let partial = dest.with_extension("partial");
+    if let Err(error) = curl_to_file(&asset.browser_download_url, &partial) {
+        let _ = std::fs::remove_file(&partial);
+        return Err(error);
+    }
+    if let Err(error) = verify_release_checksum(&partial, &asset.name, latest) {
+        let _ = std::fs::remove_file(&partial);
+        return Err(error);
+    }
+    std::fs::rename(&partial, &dest)
+        .map_err(|error| format!("could not save {}: {error}", dest.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+    }
+
+    let launcher = launcher_for(&current).unwrap_or_else(|| {
+        dirs::home_dir()
+            .map(|home| home.join(".local/bin/brook"))
+            .unwrap_or_else(|| std::path::PathBuf::from("brook"))
+    });
+    if let Some(parent) = launcher.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    std::fs::write(&launcher, launcher_script(&dest))
+        .map_err(|error| format!("could not write {}: {error}", launcher.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755));
+    }
+
+    schedule_old_appimage_removal(&current);
+    let _ = std::process::Command::new(&dest).arg("--quit").status();
+
+    println!("Brook {latest} installed.");
+    println!("Start it with: brook");
+    Ok(())
+}
+
+#[derive(serde::Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    assets: Vec<GithubAsset>,
+}
+
+#[derive(serde::Deserialize)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+fn fetch_latest_release() -> Result<GithubRelease, String> {
+    let url = format!("https://api.github.com/repos/{RELEASE_REPO}/releases/latest");
+    let output = std::process::Command::new("curl")
+        .args([
+            "-fsSL",
+            "--max-time",
+            "30",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "X-GitHub-Api-Version: 2022-11-28",
+            &url,
+        ])
+        .output()
+        .map_err(|error| format!("could not run curl: {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr);
+        let detail = detail.trim();
+        if detail.is_empty() {
+            return Err("could not read the latest Brook release".to_string());
+        }
+        return Err(format!("could not read the latest Brook release: {detail}"));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("could not read the latest Brook release: {error}"))
+}
+
+fn appimage_arch() -> Result<&'static str, String> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok("amd64"),
+        "aarch64" => Ok("aarch64"),
+        other => Err(format!("unsupported architecture: {other}")),
+    }
+}
+
+fn release_asset<'a>(assets: &'a [GithubAsset], arch: &str) -> Result<&'a GithubAsset, String> {
+    let suffix = format!("_{arch}.AppImage");
+    assets
+        .iter()
+        .find(|asset| asset.name.starts_with("Brook_") && asset.name.ends_with(&suffix))
+        .ok_or_else(|| format!("no AppImage found for {arch}"))
+}
+
+fn curl_to_file(url: &str, dest: &std::path::Path) -> Result<(), String> {
+    let status = std::process::Command::new("curl")
+        .args(["-fL", "--retry", "3", "--max-time", "300", "-o"])
+        .arg(dest)
+        .arg(url)
+        .status()
+        .map_err(|error| format!("could not run curl: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("could not download {url}"))
+    }
+}
+
+/// Check `SHA256SUMS` when the release published one. A missing file is fine.
+fn verify_release_checksum(
+    path: &std::path::Path,
+    filename: &str,
+    tag: &str,
+) -> Result<(), String> {
+    let url = format!("https://github.com/{RELEASE_REPO}/releases/download/{tag}/SHA256SUMS");
+    let output = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", &url])
+        .output()
+        .map_err(|error| format!("could not run curl: {error}"))?;
+    if !output.status.success() {
+        return Ok(());
+    }
+    let sums = String::from_utf8_lossy(&output.stdout);
+    let expected = sums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let hash = parts.next()?;
+        let name = parts.next()?;
+        (name == filename).then(|| hash.to_string())
+    });
+    let Some(expected) = expected else {
+        return Err(format!("no checksum entry for {filename}"));
+    };
+    let hashed = std::process::Command::new("sha256sum")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("could not run sha256sum: {error}"))?;
+    if !hashed.status.success() {
+        return Err("checksum verification failed".to_string());
+    }
+    let actual = String::from_utf8_lossy(&hashed.stdout);
+    let actual = actual.split_whitespace().next().unwrap_or("");
+    if actual.eq_ignore_ascii_case(&expected) {
+        Ok(())
+    } else {
+        Err("checksum verification failed".to_string())
+    }
+}
+
+fn launcher_script(appimage: &std::path::Path) -> String {
+    let path = appimage.display().to_string().replace('"', "\\\"");
+    format!(
+        r#"#!/usr/bin/env bash
+# brook-cli: uninstall
+set -euo pipefail
+APPIMAGE="{path}"
+: "${{WEBKIT_DISABLE_DMABUF_RENDERER:=1}}"
+: "${{WEBKIT_DISABLE_COMPOSITING_MODE:=1}}"
+export WEBKIT_DISABLE_DMABUF_RENDERER WEBKIT_DISABLE_COMPOSITING_MODE
+for lib in /usr/lib/libwayland-client.so.0 /usr/lib64/libwayland-client.so.0; do
+  if [ -f "$lib" ]; then
+    export LD_PRELOAD="${{lib}}${{LD_PRELOAD:+:$LD_PRELOAD}}"
+    break
+  fi
+done
+# Uninstall removes a launcher beside the AppImage. This command lives in
+# ~/.local/bin, so remove it once uninstall returns.
+for arg in "$@"; do
+  if [ "$arg" = "--uninstall" ]; then
+    set +e
+    "$APPIMAGE" "$@"
+    status=$?
+    set -e
+    rm -f -- "$0"
+    exit "$status"
+  fi
+done
+exec "$APPIMAGE" "$@"
+"#
+    )
+}
+
+fn schedule_old_appimage_removal(old: &std::path::Path) {
+    let quoted = shell_single_quote(&old.display().to_string());
+    let script = format!(
+        "old={quoted}\nfor _ in $(seq 1 150); do\n  if rm -f -- \"$old\" 2>/dev/null; then exit 0; fi\n  sleep 0.2\ndone\n"
+    );
+    let _ = std::process::Command::new("setsid")
+        .args(["bash", "-c", &script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn version_parts(tag: &str) -> Option<Vec<u64>> {
+    let tag = tag.trim().trim_start_matches('v');
+    if tag.is_empty() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    for piece in tag.split('.') {
+        if piece.is_empty() || piece.chars().any(|ch| !ch.is_ascii_digit()) {
+            return None;
+        }
+        parts.push(piece.parse().ok()?);
+    }
+    Some(parts)
+}
+
+fn cmp_versions(current: &str, latest: &str) -> Option<std::cmp::Ordering> {
+    let mut current = version_parts(current)?;
+    let mut latest = version_parts(latest)?;
+    let len = current.len().max(latest.len());
+    current.resize(len, 0);
+    latest.resize(len, 0);
+    Some(current.cmp(&latest))
+}
+
 /// Remove the AppImage install: the bundle, the `brook` command, the desktop
 /// entry, and the icon. The music folder stays. `clear_history` also removes
 /// listening history and cached cover art.
@@ -807,5 +1084,53 @@ mod tests {
         assert_eq!(launcher_for(&dir.join("Other.AppImage")), None);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn update_compares_release_tags() {
+        assert_eq!(
+            super::cmp_versions("0.1.1", "v0.1.2"),
+            Some(std::cmp::Ordering::Less)
+        );
+        assert_eq!(
+            super::cmp_versions("0.1.2", "v0.1.2"),
+            Some(std::cmp::Ordering::Equal)
+        );
+        assert_eq!(
+            super::cmp_versions("0.1.2", "v0.1.1"),
+            Some(std::cmp::Ordering::Greater)
+        );
+        assert!(super::cmp_versions("0.1.2", "latest").is_none());
+    }
+
+    #[test]
+    fn update_picks_the_appimage_for_this_arch() {
+        let assets = vec![
+            super::GithubAsset {
+                name: "SHA256SUMS".into(),
+                browser_download_url: "https://example.invalid/sums".into(),
+            },
+            super::GithubAsset {
+                name: "Brook_0.1.2_amd64.AppImage".into(),
+                browser_download_url: "https://example.invalid/amd64".into(),
+            },
+            super::GithubAsset {
+                name: "Brook_0.1.2_aarch64.AppImage".into(),
+                browser_download_url: "https://example.invalid/arm".into(),
+            },
+        ];
+        let asset = super::release_asset(&assets, "amd64").unwrap();
+        assert_eq!(asset.name, "Brook_0.1.2_amd64.AppImage");
+        assert!(super::release_asset(&assets, "armv7").is_err());
+    }
+
+    #[test]
+    fn launcher_script_points_at_the_new_appimage() {
+        let script = super::launcher_script(std::path::Path::new(
+            "/tmp/Applications/Brook_0.1.2_amd64.AppImage",
+        ));
+        assert!(script.contains("APPIMAGE=\"/tmp/Applications/Brook_0.1.2_amd64.AppImage\""));
+        assert!(script.contains("brook-cli: uninstall"));
+        assert!(script.contains("--uninstall"));
     }
 }

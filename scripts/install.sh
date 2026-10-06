@@ -197,6 +197,7 @@ main() {
   echo
   echo "Brook ${tag} installed."
   echo "Launch with: brook"
+  echo "Update with: brook --update"
   echo "Uninstall with: brook --uninstall"
   echo "Remove listening history with: brook --uninstall --clear-history"
 }

@@ -25,11 +25,13 @@ import {
 } from "./ui/playlists";
 import { bindSidebarNavigation, Router } from "./ui/router";
 import { initGlobalSearch, initSearchPage } from "./ui/search";
+import { initAboutPage } from "./ui/about";
 import { initAppShell } from "./ui/shell";
 import type { QueueSnapshot, Track } from "./types";
 
 async function boot(): Promise<void> {
   logStartupHint();
+  initAboutPage();
   const bootTimer = new DevTimer("boot", "boot()");
 
   await initSharedTheme();
