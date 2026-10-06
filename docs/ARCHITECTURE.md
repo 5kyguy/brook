@@ -35,19 +35,21 @@ flowchart TB
 
 ## Decision log
 
-### ADR-001: Rust-native playback (whole file in memory)
+### ADR-001: Rust-native streaming playback
 
-**Status:** Accepted
+**Status:** Accepted (revised)
 
-**Context:** Webview-based playback (`HTMLAudioElement`, blob URLs) is fragile across platforms and couples decode to the webview codec stack.
+**Context:** Webview-based playback (`HTMLAudioElement`, blob URLs) is fragile across platforms and couples decode to the webview codec stack. The first version decoded the whole file into a `Vec<f32>` before playback, which blocked the play command and held large files in RAM.
 
-**Decision:** Decode and play audio entirely in Rust. Read the full file with `std::fs::read`, decode with `symphonia`, output with `rodio`/`cpal`. The UI receives state via Tauri events only.
+**Decision:** Decode and play audio entirely in Rust. Open the file with a `MediaSourceStream`, decode with `symphonia` on a background thread into a bounded PCM ring (~2 s), and output with `rodio`/`cpal`. The UI receives state via Tauri events only.
 
 **Consequences:**
 
 - Reliable playback independent of webview media support
-- Higher RAM use for large files (acceptable by design)
-- Spectrum visualizer data is computed in Rust (`playback:spectrum` events)
+- Playback starts as soon as the first frames are decoded; the play command no longer blocks on a full decode
+- Bounded RAM use regardless of file size
+- Spectrum visualizer data is computed in Rust from the decoder's recent-output tail (`playback:spectrum` events)
+- Seek reopens the file and re-arms the decoder at the new timestamp
 
 **Non-goals:** Blob URLs, Shaka, HLS, chunked streaming, `HTMLAudioElement`.
 
@@ -141,7 +143,7 @@ flowchart TB
 
 **Status:** Accepted
 
-**Decision:** Settings keep the track-based Dynamic Color toggle, shortcuts reference, and music folder controls. The manual theme picker is gone. Accent color comes from the local R2-D2 theme document, with bundled monochrome when that document is missing or invalid. Persist the Dynamic Color preference in `localStorage`. Hardcode playback behavior in Rust — no EQ/gapless/replay-gain UI.
+**Decision:** Settings keep the track-based Dynamic Color toggle, shortcuts reference, and music folder controls. The manual theme picker is gone. Accent color comes from the local R2-D2 theme document, with bundled monochrome when that document is missing or invalid. Persist the Dynamic Color preference in `localStorage`. Hardcode playback behavior in Rust — no EQ/gapless/replay-gain UI. ReplayGain track gain is still applied automatically at playback from the file's tags (read-only); there is no UI to tune it.
 
 ---
 
@@ -163,8 +165,8 @@ sequenceDiagram
     alt unchanged mtime and size
       Scan-->>Scan: skip
     else
-      Scan->>Meta: read tags + lrc hint
-      Meta->>DB: upsert track
+      Scan->>Meta: read tags + lrc hint (Rayon pool, 4 threads)
+      Meta->>DB: upsert track (batched, single writer)
     end
     Tauri-->>UI: library:scan-progress
   end
@@ -300,15 +302,22 @@ CREATE TABLE app_settings (
 | `set_music_root` | `path: string` | `string` | Set override, clear library data, return canonical path |
 | `start_library_scan` | — | `()` | Start background scan (no-op if one is already running); emits progress/complete |
 | `get_library_facets` | — | `LibraryFacets` | Distinct artists, albums, years, and track count (no full track list) |
-| `get_tracks` | `TrackFilter?` | `Track[]` | Filter/sort by artist, album, year, text query |
+| `get_tracks` | `TrackFilter?` | `Track[]` | Filter/sort by artist, album, year, text query (whole result set) |
+| `get_tracks_page` | `TrackFilter?` (with `limit`/`offset`) | `TracksPage` | One page plus the total count for the same filter; the local list paginates with this |
+| `get_tracks_count` | `TrackFilter?` | `number` | Count of matching tracks (ignores `limit`/`offset`); sizes the virtual list's scroll height |
 | `get_track` | `id: string` | `Track` | Single track |
-| `get_album_art` | `id: string` | `{ data, mimeType }` or null | Cover bytes for UI |
-| `play_track` | `id: string` | `()` | Loads file, starts playback |
+| `get_album_art` | `id: string` | `{ data, mimeType }` or null | Full cover bytes (player / now-playing / detail header) |
+| `get_album_art_thumb` | `id: string` | `{ data, mimeType }` or null | Small (96px) JPEG list thumbnail, cached beside the full cover |
+| `get_album_art_batch` | `ids: string[]` | `Array<{ id, art }>` | List thumbnails for many ids in one IPC round-trip |
+| `play_track` | `id: string` | `()` | Opens the file and starts streaming playback |
+| `set_upcoming_track` | `id: string \| null` | `()` | Tell the engine the next queue track so it can preload it for a gapless handoff; `null` drops the preload |
 | `pause` | — | `()` | |
 | `resume` | — | `()` | |
 | `seek` | `position_secs: f64` | `()` | Seek within current track |
 | `set_volume` | `volume: f32` | `()` | 0.0–1.0 |
 | `set_visualizer_active` | `active: bool` | `()` | Enables ~30 Hz `playback:spectrum` events |
+| `stop` | — | `()` | Stop playback without emitting `playback:ended` (MPRIS Stop) |
+| `set_mpris_controls` | `shuffle: bool, repeat: string` | `()` | Push shuffle/loop state to the MPRIS player (Linux only) |
 | `get_playback_state` | — | `PlaybackState` | Current track, position, status |
 | `toggle_favorite` | `track_id: string` | `bool` | New liked state |
 | `get_favorites` | — | `Track[]` | |
@@ -333,8 +342,13 @@ CREATE TABLE app_settings (
 | `playback:state` | `{ status: playing\|paused\|stopped }` | State change |
 | `playback:position` | `{ position_secs, duration_secs }` | ~4 Hz while playing (250 ms tick) |
 | `playback:spectrum` | `{ bins: number[] }` | ~30 Hz while playing and visualizer active |
-| `playback:track-changed` | `Track` | New track loaded |
-| `playback:ended` | `{ track_id }` | Natural end or stop |
+| `playback:track-changed` | `Track` | New track loaded via `play_track` |
+| `playback:advanced` | `{ track: Track }` | Gapless handoff to a preloaded next track (no second `play_track`) |
+| `playback:ended` | `{ track_id }` | Natural end with no preloaded next track |
+| `mpris:next` | — | Desktop media key / playerctl asked for next (frontend runs `goNext`) |
+| `mpris:previous` | — | Desktop media key / playerctl asked for previous (frontend runs `goPrev`) |
+| `mpris:shuffle` | `bool` | Desktop asked to set shuffle (frontend toggles to match) |
+| `mpris:loop` | `string` | Desktop asked to set repeat mode: `off`/`all`/`one` (frontend cycles to match) |
 | `db:favorites-changed` | `{ track_id, liked: bool }` | Like toggled |
 | `db:playlists-changed` | `{ playlist_id? }` | Playlist CRUD |
 | `theme:changed` | `SharedTheme` | Local theme file replaced, removed, or rejected |
@@ -423,8 +437,8 @@ interface SharedTheme {
 | Graphic EQ | Off | offline-defaults |
 | Binaural DSP | Off | offline-defaults |
 | Mono audio | Off | offline-defaults |
-| Gapless | Off | offline-defaults |
-| ReplayGain | Track mode, preamp 1 | offline-defaults |
+| Gapless | On (next-track preload) | streaming decoder + `set_upcoming_track` |
+| ReplayGain | Track mode, applied at playback from tags (read-only) | `REPLAYGAIN_TRACK_GAIN`/`_PEAK` read at scan, scaled at the sink |
 | Playback speed | 1×, preserve pitch | offline-defaults |
 | Exponential volume | Off | offline-defaults |
 
@@ -455,6 +469,8 @@ interface SharedTheme {
 | App data | SQLite in Rust; frontend invokes commands |
 | Duration/stats | Seconds end-to-end in schema and UI |
 | Scope | Offline-only routes; no streaming/auth/scrobble |
+| Large libraries | Parallel `lofty` tag reads on a 4-thread Rayon pool; paged `get_tracks` + viewport recycler so only visible rows are in the DOM; small (96px) cached cover thumbnails served to lists, full art to the player; batched cover fetch in one IPC |
+| Single instance | `tauri-plugin-single-instance` focuses the running window on a second launch; a later CLI can sit on the same channel |
 
 ---
 

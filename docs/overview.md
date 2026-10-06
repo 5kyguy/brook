@@ -7,12 +7,14 @@ Brook is a fully offline desktop music player. It reads audio from your local li
 ## What Brook is
 
 - Local music player for `$HOME/Music` by default (configurable in settings)
-- Likes, playlists (user + auto charts), and library browse with sort/filter by album, artist, and year
-- Sidecar `.lrc` lyrics, with fallback to embedded ID3/metadata lyrics (lyrics panel in the player bar)
+- Likes, playlists (user + auto charts + rule-based smart playlists), and library browse with sort/filter by album, artist, and year
+- Sidecar `.lrc` lyrics, with fallback to embedded ID3/metadata lyrics (lyrics panel in the player bar; click a synced line to seek)
 - Global search plus artist and album detail pages
 - Play queue (view, drag reorder, play next / add to queue from context menu; `Q` shortcut)
 - Fullscreen now playing (transport controls; spectrum visualizer opt-in)
 - Listening statistics, recent plays, and a simple yearly wrap view
+- Resume where you left off: the last track and position are restored on launch
+- ReplayGain track gain applied at playback from file tags (read-only — files are never modified)
 - Rust audio engine: each track is loaded fully into memory before playback
 - **Read-only library** — files in your music folder are never re-encoded, transcoded, or tag-edited by Brook
 
@@ -54,7 +56,7 @@ Brook resolves lyrics in this order:
 2. **Embedded tags** — lyrics stored in file metadata (USLT, etc.)
 3. **None** — lyrics button stays hidden if neither is available
 
-Use the mic button in the player bar (or press `L`) to open the lyrics side panel. Synced LRC lines highlight with playback position.
+Use the mic button in the player bar (or press `L`) to open the lyrics side panel. Synced LRC lines highlight with playback position; click a synced line to seek the player there.
 
 ## Library integrity
 
@@ -69,12 +71,29 @@ Brook treats your music folder as the source of truth:
 
 Audio is decoded and played entirely in Rust:
 
-- The full file is read into memory (`std::fs::read`)
+- The file is opened with a `MediaSourceStream` and decoded on a background thread into a bounded PCM ring (~2 s)
+- Playback starts as soon as the first frames are decoded; the play command no longer blocks on a full decode
 - Decode is for playback output only — the file on disk is unchanged
 - No HTML5 media element, no streaming/chunked loading (cover art may use blob URLs in the webview for display only)
-- Large FLAC files use more RAM by design
+- Seek reopens the file and re-arms the decoder at the new timestamp
+- The next queue track is preloaded into a second ring so track changes are gapless (`set_upcoming_track` + `playback:advanced`)
+- **Resume** — the playing track and position are saved periodically and on stop, and restored on the next launch (paused at the saved position)
+- **ReplayGain** — `REPLAYGAIN_TRACK_GAIN`/`_PEAK` tags are read at scan and applied as a volume scale at the sink (read-only; files are never modified). The user-facing volume slider is unaffected.
 
 Playback state reaches the UI through Tauri events (position, state, track changes).
+
+On Linux, playback is also published on MPRIS so media keys, `playerctl`, and Waybar widgets can observe and control it. Next/previous route back through the frontend queue; play, pause, seek, volume, and stop call the engine directly.
+
+## Large libraries
+
+Brook stays responsive when the library is tens of thousands of tracks:
+
+- **Parallel scan** — changed-file tag reads run on a 4-thread Rayon pool; the mtime/size skip and the single batched DB writer are unchanged
+- **Paged track reads** — the local list fetches `get_tracks_page` with `limit`/`offset` and a total count, so the frontend never holds the whole library in memory
+- **Virtualized list** — only the visible window (plus a small overscan) is in the DOM; top/bottom spacers carry the full scroll height, and clicks are handled by one delegated listener so recycled rows never accumulate listeners
+- **List thumbnails** — covers are served to lists as small (96px) JPEG thumbnails cached beside the full cover; the player and detail headers still get the full image
+- **Batched covers** — visible rows fetch their thumbnails in one `get_album_art_batch` IPC round-trip instead of one call per row
+- **Single instance** — a second launch focuses the running window instead of starting a second copy
 
 ## Settings
 
@@ -85,7 +104,7 @@ The settings page covers UI preferences (stored in `localStorage` unless noted):
 - Keyboard shortcuts (Space, arrows, M/S/R/L, `/` for search, `Q` for queue, Esc to close modals; read-only reference modal)
 - Music folder location (picker) and library rescan
 
-Playback options (EQ, gapless, replay gain) are fixed defaults — not exposed in settings.
+Playback options (EQ) are fixed defaults — not exposed in settings. ReplayGain track gain is applied automatically from file tags at playback (read-only, no UI). Gapless is on by default via next-track preload.
 
 ## Stack
 
@@ -117,3 +136,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for ADRs, database schema, and the IPC co
 - [x] Fullscreen player with transport controls (visualizer opt-in)
 - [x] Recent plays page (`get_recent_tracks`)
 - [x] Playlist rename/delete, cover collage, favorites grid view
+- [x] Smart playlists (rule-based, evaluated as live SQLite queries)
+- [x] Click a synced lyric line to seek
+- [x] Resume position on quit, restore on launch
+- [x] Read-only ReplayGain (track gain applied at playback from tags)
