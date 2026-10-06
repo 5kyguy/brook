@@ -5,6 +5,7 @@ import { applyTrackCovers, COVER_PLACEHOLDER } from "./cover-art";
 import { filterStateToQuery, initFilterBar, type FilterBar } from "./filters";
 import { trackArtist, trackLabel } from "./dom";
 import { renderTrackList } from "./track-list";
+import { VirtualTrackList } from "./virtual-list";
 import { wireInPageSearch } from "./search";
 import { SVG_HEART, SVG_HEART_FILLED } from "./icons";
 
@@ -115,10 +116,12 @@ export function initLibraryPage(
   }
 
   let likedTracks: Track[] = [];
-  let localTracks: Track[] = [];
   let playingTrackId: string | null = null;
   let libraryHasTracks = false;
   let localPanelOpen = false;
+  // The local panel uses a viewport recycler: only the visible rows are in
+  // the DOM, and track data is fetched on demand in pages from the backend.
+  let virtualList: VirtualTrackList | null = null;
   let likedView: "list" | "grid" =
     localStorage.getItem(LIKED_VIEW_KEY) === "grid" ? "grid" : "list";
   const filterBar: FilterBar | null = filtersMount ? initFilterBar(filtersMount) : null;
@@ -172,19 +175,37 @@ export function initLibraryPage(
     renderLiked();
   });
 
-  const renderLocal = () => {
-    if (filtersMount) {
-      filtersMount.hidden = !libraryHasTracks;
-    }
-    renderTrackList(localListEl, localTracks, {
-      ...listOptions(localTracks),
+  const localScrollRoot = (): HTMLElement | null => localListEl.parentElement;
+
+  const buildVirtualList = (): VirtualTrackList => {
+    const root = localScrollRoot();
+    const list = new VirtualTrackList(root ?? localListEl, localListEl!, {
+      onPlay,
+      onToggleFavorite,
+      onAddToPlaylist,
+      showInlineLike: true,
+      getPlayingTrackId: () => playingTrackId,
+      getFilter: () =>
+        filterBar ? filterStateToQuery(filterBar.getState()) : undefined,
       emptyMessage: "No tracks found in your music folder.",
     });
+    list.attach();
+    return list;
   };
+
+  async function refreshLocalOnly() {
+    const fetchStart = performance.now();
+    if (!virtualList) virtualList = buildVirtualList();
+    await virtualList.reset();
+    devLog(
+      "boot",
+      `local virtual list reset: ${virtualList.count} total (${Math.round(performance.now() - fetchStart)}ms)`,
+    );
+  }
 
   if (filterBar) {
     filterBar.onChange(() => {
-      if (localPanelOpen) void refreshLocalOnly();
+      if (localPanelOpen) void virtualList?.reset();
     });
   }
 
@@ -207,17 +228,6 @@ export function initLibraryPage(
     },
   );
 
-  async function refreshLocalOnly() {
-    const query = filterBar ? filterStateToQuery(filterBar.getState()) : undefined;
-    const fetchStart = performance.now();
-    localTracks = await api.library.getTracks(query);
-    devLog(
-      "boot",
-      `getTracks(local): ${localTracks.length} tracks (${Math.round(performance.now() - fetchStart)}ms)`,
-    );
-    renderLocal();
-  }
-
   openLocalBtn?.addEventListener("click", () => {
     setLocalPanelOpen(true);
     localPanelOpen = true;
@@ -226,15 +236,20 @@ export function initLibraryPage(
   closeLocalBtn?.addEventListener("click", () => {
     setLocalPanelOpen(false);
     localPanelOpen = false;
+    virtualList?.detach();
   });
 
   return {
     getPlayingTrackId: () => playingTrackId,
     setPlayingTrackId(id) {
       playingTrackId = id;
+      virtualList?.invalidate();
     },
     async refresh() {
-      await Promise.all([this.refreshLiked(), localPanelOpen ? refreshLocalOnly() : Promise.resolve()]);
+      await Promise.all([
+        this.refreshLiked(),
+        localPanelOpen ? refreshLocalOnly() : Promise.resolve(),
+      ]);
     },
     async refreshLiked() {
       likedTracks = await api.library.getFavorites();

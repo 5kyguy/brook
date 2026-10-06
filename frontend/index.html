@@ -74,6 +74,62 @@
             </div>
         </div>
 
+        <div id="smart-playlist-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content smart-playlist-editor">
+                <h3 id="smart-playlist-modal-title">Create Smart Playlist</h3>
+                <input
+                    type="text"
+                    id="smart-playlist-name-input"
+                    class="template-input"
+                    placeholder="Smart playlist name"
+                    autocomplete="off"
+                    style="margin: 0.5rem 0; width: 100%"
+                />
+                <div id="smart-playlist-rules" class="smart-playlist-rules"></div>
+                <button type="button" id="smart-playlist-add-rule" class="btn-secondary">
+                    + Add rule
+                </button>
+                <div class="smart-playlist-options">
+                    <label>
+                        Sort by
+                        <select id="smart-playlist-sort-by">
+                            <option value="title">Title</option>
+                            <option value="artist">Artist</option>
+                            <option value="album">Album</option>
+                            <option value="genre">Genre</option>
+                            <option value="year">Year</option>
+                            <option value="duration">Duration</option>
+                            <option value="playCount">Play count</option>
+                            <option value="lastPlayed">Last played</option>
+                            <option value="dateAdded">Date added</option>
+                        </select>
+                    </label>
+                    <label>
+                        Order
+                        <select id="smart-playlist-sort-order">
+                            <option value="asc">Ascending</option>
+                            <option value="desc">Descending</option>
+                        </select>
+                    </label>
+                    <label>
+                        Limit
+                        <input
+                            type="number"
+                            id="smart-playlist-limit"
+                            min="1"
+                            placeholder="no limit"
+                            style="width: 6rem"
+                        />
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button id="smart-playlist-cancel" class="btn-secondary">Cancel</button>
+                    <button id="smart-playlist-save" class="btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+
         <div id="shortcuts-modal" class="modal">
             <div class="modal-overlay"></div>
             <div class="modal-content medium">
@@ -236,6 +292,18 @@
                                     </div>
                                     <div class="card-info">
                                         <h4 class="card-title">Create playlist</h4>
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="card library-create-dashed-card"
+                                    id="library-create-smart-playlist-card"
+                                >
+                                    <div class="library-create-dashed-art">
+                                        <use svg="!lucide/sliders-horizontal.svg" size="28" />
+                                    </div>
+                                    <div class="card-info">
+                                        <h4 class="card-title">Create smart playlist</h4>
                                     </div>
                                 </button>
                             </div>

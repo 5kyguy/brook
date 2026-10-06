@@ -23,6 +23,18 @@ export interface TrackFilter {
   query?: string;
   sortBy?: "title" | "artist" | "album" | "year" | "dateAdded";
   sortOrder?: "asc" | "desc";
+  /** Page size. Omit to request the whole result set. */
+  limit?: number;
+  /** Row offset for paged queries. */
+  offset?: number;
+}
+
+/** One page of tracks plus the total row count for the same filter. */
+export interface TracksPage {
+  tracks: Track[];
+  total: number;
+  offset: number;
+  limit: number;
 }
 
 export interface PlaybackState {
@@ -31,6 +43,11 @@ export interface PlaybackState {
   positionSecs: number;
   durationSecs: number;
   volume: number;
+}
+
+export interface ResumeState {
+  trackId: string | null;
+  positionSecs: number;
 }
 
 export interface PlaybackStatePayload {
@@ -44,6 +61,10 @@ export interface PlaybackPositionPayload {
 
 export interface PlaybackEndedPayload {
   trackId: string;
+}
+
+export interface PlaybackAdvancedPayload {
+  track: Track;
 }
 
 export interface PlaybackSpectrumPayload {
@@ -80,10 +101,24 @@ export interface Playlist {
 
 export type PlaylistKind =
   | "user"
+  | "smart"
   | "weeklyTop"
   | "monthlyTop"
   | "quarterlyTop"
   | "yearlyTop";
+
+export interface SmartPlaylistRule {
+  field: string;
+  op: string;
+  value: string;
+}
+
+export interface SmartPlaylistConfig {
+  rules: SmartPlaylistRule[];
+  sortBy?: string;
+  sortOrder?: string;
+  limit?: number;
+}
 
 export interface RankedTrack {
   track: Track;

@@ -29,24 +29,31 @@ export interface TrackListOptions extends TrackListActions {
   emptyMessage?: string;
 }
 
-function createTrackItemHTML(
+function trackItemClassName(track: Track, options: TrackListOptions): string {
+  const isPlaying = options.playingTrackId === track.id;
+  const showLike = options.showInlineLike !== false;
+  return `track-item${isPlaying ? " playing" : ""}${showLike ? " track-item--inline-like" : ""}`;
+}
+
+/** Inner content of a `.track-item` row (no wrapper div). The virtual
+ *  recycler reuses a `.track-item` element and only swaps this content. */
+export function createTrackItemInnerHTML(
   track: Track,
   options: TrackListOptions,
 ): string {
-  const isPlaying = options.playingTrackId === track.id;
-  const showLike = options.showInlineLike !== false;
   const title = escapeHtml(trackLabel(track));
   const artist = escapeHtml(trackArtist(track));
   const duration =
     track.durationSecs != null ? formatDuration(track.durationSecs) : "--:--";
 
-  const inlineLike = showLike
-    ? `<div class="track-item-inline-like">
+  const inlineLike =
+    options.showInlineLike !== false
+      ? `<div class="track-item-inline-like">
         <button type="button" class="like-btn track-row-like-btn${track.isFavorite ? " active" : ""}" title="${track.isFavorite ? "Unlike" : "Like"}">
           ${heartIcon(track.isFavorite)}
         </button>
       </div>`
-    : "";
+      : "";
 
   const removeBtn =
     options.showRemoveAction && options.onRemoveFromPlaylist
@@ -54,9 +61,6 @@ function createTrackItemHTML(
       : `<button type="button" class="track-menu-btn" title="More options">${SVG_MENU(20)}</button>`;
 
   return `
-    <div class="track-item${isPlaying ? " playing" : ""}${showLike ? " track-item--inline-like" : ""}"
-         data-track-id="${escapeHtml(track.id)}"
-         data-type="track">
       <div class="track-item-info">
         <img
           class="track-item-cover"
@@ -73,17 +77,34 @@ function createTrackItemHTML(
       ${inlineLike}
       <div class="track-item-duration">${duration}</div>
       <div class="track-item-actions">${removeBtn}</div>
+  `;
+}
+
+function createTrackItemHTML(
+  track: Track,
+  options: TrackListOptions,
+): string {
+  return `
+    <div class="${trackItemClassName(track, options)}"
+         data-track-id="${escapeHtml(track.id)}"
+         data-type="track">
+      ${createTrackItemInnerHTML(track, options)}
     </div>
   `;
 }
 
 const TRACK_RENDER_BATCH = 40;
 
-function wireTrackListRows(container: HTMLElement, tracks: Track[], options: TrackListOptions): void {
-  container.querySelectorAll<HTMLElement>(".track-item").forEach((row) => {
+function wireTrackRows(
+  rows: HTMLElement[],
+  tracks: Track[],
+  options: TrackListOptions,
+  queueTracks: Track[] = tracks,
+): void {
+  for (const row of rows) {
     const trackId = row.dataset.trackId;
     const track = tracks.find((t) => t.id === trackId);
-    if (!track) return;
+    if (!track) continue;
 
     row.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
@@ -99,12 +120,17 @@ function wireTrackListRows(container: HTMLElement, tracks: Track[], options: Tra
       }
       if (target.closest(".track-menu-btn") && options.onAddToPlaylist) {
         event.stopPropagation();
-        options.onAddToPlaylist(track);
+        void options.onAddToPlaylist(track);
         return;
       }
-      options.onPlay(track, tracks);
+      options.onPlay(track, queueTracks);
     });
-  });
+  }
+}
+
+function wireTrackListRows(container: HTMLElement, tracks: Track[], options: TrackListOptions): void {
+  const rows = Array.from(container.querySelectorAll<HTMLElement>(".track-item"));
+  wireTrackRows(rows, tracks, options);
 }
 
 function renderTrackListSync(
@@ -164,4 +190,37 @@ export function renderTrackList(
   }
 
   renderTrackListSync(container, tracks, options);
+}
+
+/**
+ * Append `tracks` to `container` without clearing the existing rows, wiring
+ * only the newly added rows (so existing rows keep their listeners and are
+ * not re-wired). Used by the paged local list to grow the DOM one page at a
+ * time. Assumes `container` already holds track rows from a prior
+ * `renderTrackList`/`appendTrackList` call with the same `options`.
+ */
+export function appendTrackList(
+  container: HTMLElement,
+  tracks: Track[],
+  options: TrackListOptions,
+  queueTracks?: Track[],
+): void {
+  if (tracks.length === 0) return;
+
+  // If a placeholder ("No tracks") is present, drop it before appending.
+  const placeholder = container.querySelector(".placeholder-text");
+  if (placeholder) placeholder.remove();
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = tracks.map((track) => createTrackItemHTML(track, options)).join("");
+  const newRows: HTMLElement[] = [];
+  while (wrapper.firstChild) {
+    const node = wrapper.firstChild as HTMLElement;
+    if (node.classList?.contains("track-item")) newRows.push(node);
+    container.appendChild(node);
+  }
+  applyTrackCovers(container);
+  // Wire only the newly appended rows so existing rows keep their listeners.
+  // `queueTracks` (defaults to this slice) is the play queue passed to onPlay.
+  wireTrackRows(newRows, tracks, options, queueTracks ?? tracks);
 }

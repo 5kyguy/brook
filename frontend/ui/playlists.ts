@@ -5,6 +5,7 @@ import { showToast } from "./dom";
 import { SVG_LIST_MUSIC } from "./icons";
 import { renderTrackList } from "./track-list";
 import { wireInPageSearch } from "./search";
+import { openSmartPlaylistEditorFor, openSmartPlaylistModal, wireSmartPlaylistModal } from "./smart-playlist";
 import type { Router } from "./router";
 
 function escapeHtml(text: string): string {
@@ -28,11 +29,16 @@ function chartDescription(kind: PlaylistKind): string {
 
 function createUserPlaylistCardHTML(playlist: Playlist): string {
   const count = playlist.trackCount;
-  const chartClass = playlist.kind !== "user" ? " chart-playlist" : "";
+  const chartClass = playlist.kind !== "user" && playlist.kind !== "smart" ? " chart-playlist" : "";
+  const smartBadge =
+    playlist.kind === "smart"
+      ? `<span class="card-badge smart-playlist-badge">smart</span>`
+      : "";
   return `
     <div class="card user-playlist${chartClass}" data-user-playlist-id="${escapeHtml(playlist.id)}" data-href="/userplaylist/${escapeHtml(playlist.id)}" style="cursor: pointer;">
       <div class="card-image-wrapper">
         <img src="./assets/appicon.png" alt="" class="card-image" loading="lazy" />
+        ${smartBadge}
       </div>
       <div class="card-info">
         <h3 class="card-title">${escapeHtml(playlist.name)}</h3>
@@ -69,6 +75,7 @@ export function initPlaylists(
   const grid = document.getElementById("my-playlists-container");
   const chartGrid = document.getElementById("chart-playlists-container");
   const createCard = document.getElementById("library-create-playlist-card");
+  const createSmartCard = document.getElementById("library-create-smart-playlist-card");
   const detailTitle = document.getElementById("playlist-detail-title");
   const detailMeta = document.getElementById("playlist-detail-meta");
   const detailDescription = document.getElementById("playlist-detail-description");
@@ -120,6 +127,15 @@ export function initPlaylists(
     openCreatePlaylistModal({ openAfterCreate: true });
   });
 
+  createSmartCard?.addEventListener("click", () => {
+    openSmartPlaylistModal({ openAfterSave: true });
+  });
+
+  wireSmartPlaylistModal(async (result) => {
+    await refresh();
+    await openPlaylist(result.playlistId);
+  });
+
   playPlaylistBtn?.addEventListener("click", () => {
     if (currentPlaylistTracks.length === 0) return;
     onPlay(currentPlaylistTracks[0], currentPlaylistTracks);
@@ -128,7 +144,11 @@ export function initPlaylists(
   function ensurePlaylistAdminButtons(isChart: boolean): void {
     document.getElementById("playlist-rename-btn")?.remove();
     document.getElementById("playlist-delete-btn")?.remove();
+    document.getElementById("playlist-edit-rules-btn")?.remove();
     if (isChart || !detailActions || !currentPlaylistId) return;
+
+    const playlist = playlists.find((p) => p.id === currentPlaylistId);
+    const isSmart = playlist?.kind === "smart";
 
     const renameBtn = document.createElement("button");
     renameBtn.id = "playlist-rename-btn";
@@ -136,7 +156,6 @@ export function initPlaylists(
     renameBtn.className = "btn-secondary";
     renameBtn.textContent = "Rename";
     renameBtn.addEventListener("click", () => {
-      const playlist = playlists.find((p) => p.id === currentPlaylistId);
       const nextName = window.prompt("Rename playlist", playlist?.name ?? "");
       if (!nextName?.trim() || !currentPlaylistId) return;
       void (async () => {
@@ -153,7 +172,6 @@ export function initPlaylists(
     deleteBtn.textContent = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!currentPlaylistId) return;
-      const playlist = playlists.find((p) => p.id === currentPlaylistId);
       if (!window.confirm(`Delete playlist "${playlist?.name ?? "this playlist"}"?`)) return;
       void (async () => {
         await api.playlists.deletePlaylist(currentPlaylistId!);
@@ -164,13 +182,35 @@ export function initPlaylists(
     });
 
     detailActions.appendChild(renameBtn);
+
+    if (isSmart && currentPlaylistId) {
+      const editRulesBtn = document.createElement("button");
+      editRulesBtn.id = "playlist-edit-rules-btn";
+      editRulesBtn.type = "button";
+      editRulesBtn.className = "btn-secondary";
+      editRulesBtn.textContent = "Edit rules";
+      editRulesBtn.addEventListener("click", () => {
+        if (!currentPlaylistId) return;
+        void openSmartPlaylistEditorFor(
+          currentPlaylistId,
+          playlist?.name ?? "",
+          true,
+        ).then(() => {
+          // Re-open the playlist after the editor saves (wireSmartPlaylistModal
+          // already navigates; this refreshes the list underneath).
+          void refresh();
+        });
+      });
+      detailActions.appendChild(editRulesBtn);
+    }
+
     detailActions.appendChild(deleteBtn);
   }
 
   async function refresh() {
     playlists = await api.playlists.getPlaylists();
-    const charts = playlists.filter((p) => p.kind !== "user");
-    const userPlaylists = playlists.filter((p) => p.kind === "user");
+    const charts = playlists.filter((p) => p.kind !== "user" && p.kind !== "smart");
+    const userPlaylists = playlists.filter((p) => p.kind === "user" || p.kind === "smart");
 
     if (chartGrid) {
       chartGrid.replaceChildren();
@@ -204,7 +244,8 @@ export function initPlaylists(
     currentPlaylistId = id;
     const playlist = playlists.find((p) => p.id === id);
     currentPlaylistKind = playlist?.kind ?? "user";
-    const isChart = currentPlaylistKind !== "user";
+    const isChart = currentPlaylistKind !== "user" && currentPlaylistKind !== "smart";
+    const isSmart = currentPlaylistKind === "smart";
     const tracks = await api.playlists.getPlaylistTracks(id);
     currentPlaylistTracks = tracks;
     titleEl.textContent = playlist?.name ?? "Playlist";
@@ -229,20 +270,25 @@ export function initPlaylists(
     );
     ensurePlaylistAdminButtons(isChart);
 
+    const isUser = currentPlaylistKind === "user";
     renderTrackList(tracksList, tracks, {
       onPlay,
       onToggleFavorite,
       onAddToPlaylist,
       playingTrackId: getPlayingTrackId(),
       showInlineLike: true,
-      showRemoveAction: !isChart,
-      onRemoveFromPlaylist: (track) => {
-        void (async () => {
-          await api.playlists.removeFromPlaylist(id, track.id);
-          await openPlaylist(id);
-        })();
-      },
-      emptyMessage: "This playlist is empty.",
+      showRemoveAction: isUser,
+      onRemoveFromPlaylist: isUser
+        ? (track) => {
+            void (async () => {
+              await api.playlists.removeFromPlaylist(id, track.id);
+              await openPlaylist(id);
+            })();
+          }
+        : undefined,
+      emptyMessage: isSmart
+        ? "No tracks match these rules."
+        : "This playlist is empty.",
     });
   }
 

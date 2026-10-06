@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { LibraryFacets, Track, TrackFilter } from "../types";
+import type { LibraryFacets, Track, TrackFilter, TracksPage } from "../types";
 import { requireTauri } from "./client";
 import { onceScanComplete } from "./events";
 
@@ -45,6 +45,18 @@ export async function getTracks(filter?: TrackFilter): Promise<Track[]> {
   return invoke<Track[]>("get_tracks", { filter: filter ?? null });
 }
 
+/** Fetch one page of tracks plus the total count for the same filter. */
+export async function getTracksPage(filter?: TrackFilter): Promise<TracksPage> {
+  requireTauri();
+  return invoke<TracksPage>("get_tracks_page", { filter: filter ?? null });
+}
+
+/** Count of tracks matching `filter` (ignores `limit`/`offset`). */
+export async function getTracksCount(filter?: TrackFilter): Promise<number> {
+  requireTauri();
+  return invoke<number>("get_tracks_count", { filter: filter ?? null });
+}
+
 export async function getTrack(id: string): Promise<Track> {
   requireTauri();
   return invoke<Track>("get_track", { id });
@@ -53,6 +65,23 @@ export async function getTrack(id: string): Promise<Track> {
 export async function getAlbumArt(id: string): Promise<AlbumArtPayload | null> {
   requireTauri();
   return invoke<AlbumArtPayload | null>("get_album_art", { id });
+}
+
+/** Small (96px) list thumbnail. Cheaper over IPC than the full cover. */
+export async function getAlbumArtThumb(id: string): Promise<AlbumArtPayload | null> {
+  requireTauri();
+  return invoke<AlbumArtPayload | null>("get_album_art_thumb", { id });
+}
+
+export interface AlbumArtBatchItem {
+  id: string;
+  art: AlbumArtPayload | null;
+}
+
+/** Resolve list thumbnails for many ids in one IPC round-trip. */
+export async function getAlbumArtBatch(ids: string[]): Promise<AlbumArtBatchItem[]> {
+  requireTauri();
+  return invoke<AlbumArtBatchItem[]>("get_album_art_batch", { ids });
 }
 
 export async function getFavorites(): Promise<Track[]> {

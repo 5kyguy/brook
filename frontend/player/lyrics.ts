@@ -4,6 +4,8 @@ import { activeLineIndex, parseLrc, parsePlainLyrics, type LyricLine } from "./l
 
 export interface LyricsPanelOptions {
   onFullscreenLyricsChange?: (open: boolean) => void;
+  /** Seek playback to a position (seconds) when a synced line is clicked. */
+  onSeek?: (positionSecs: number) => void;
 }
 
 export interface LyricsPanel {
@@ -54,8 +56,9 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
           if (index === active) cls += " active";
           else if (index === active + 1) cls += " upcoming";
           else if (index < active) cls += " past";
+          cls += " clickable";
         }
-        return `<div class="${cls}">${escapeHtml(line.text)}</div>`;
+        return `<div class="${cls}"${synced ? ` data-time-ms="${line.timeMs}"` : ""}>${escapeHtml(line.text)}</div>`;
       })
       .join("");
 
@@ -122,6 +125,20 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
     if (!fullscreenHostActive || !hasLyrics) return;
     setFullscreenLyricsOpen(!fullscreenLyricsOpen);
   });
+
+  // Click a synced line to seek. One delegated listener per render target,
+  // so the frequent re-renders never re-attach per-line listeners.
+  const onLineClick = (event: MouseEvent) => {
+    if (!synced || !hasLyrics) return;
+    const target = event.target as HTMLElement | null;
+    const line = target?.closest<HTMLElement>(".synced-line[data-time-ms]");
+    if (!line) return;
+    const timeMs = Number(line.dataset.timeMs);
+    if (!Number.isFinite(timeMs)) return;
+    options.onSeek?.(timeMs / 1000);
+  };
+  content?.addEventListener("click", onLineClick);
+  fsContent?.addEventListener("click", onLineClick);
 
   return {
     async setTrack(track) {

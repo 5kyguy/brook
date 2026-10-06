@@ -42,6 +42,9 @@ async function boot(): Promise<void> {
   let visualizer: ReturnType<typeof initVisualizer> | null = null;
   const lyricsPanel = initLyricsPanel({
     onFullscreenLyricsChange: (open) => visualizer?.clampVisualizerForLyrics(open),
+    onSeek: (secs) => {
+      void api.playback.seek(secs);
+    },
   });
   const router = new Router();
 
@@ -81,6 +84,19 @@ async function boot(): Promise<void> {
     libraryPage.setPlayingTrackId(track.id);
     await setNowPlayingTrack(track);
     void libraryPage.refresh();
+    syncUpcoming();
+  }
+
+  /** Tell the engine which track is next so it can preload it for a gapless
+   * handoff. Called after every queue mutation. */
+  function syncUpcoming(): void {
+    const next = queue.getNext();
+    void api.playback.setUpcomingTrack(next ? next.id : null);
+  }
+
+  /** Push shuffle/loop state to the MPRIS player so playerctl shows it. */
+  function syncMprisControls(): void {
+    void api.playback.setMprisControls(queue.isShuffled(), queue.getRepeatMode());
   }
 
   async function playTrack(
@@ -148,10 +164,12 @@ async function boot(): Promise<void> {
         if (next) void playQueuedTrack(next);
       }
       refreshQueuePanel();
+      syncUpcoming();
     },
     onClear: () => {
       queue.clear();
       refreshQueuePanel();
+      syncUpcoming();
     },
   });
 
@@ -216,11 +234,15 @@ async function boot(): Promise<void> {
       const shuffled = queue.toggleShuffle();
       syncTransportControls();
       refreshQueuePanel();
+      syncUpcoming();
+      syncMprisControls();
       return shuffled;
     },
     onCycleRepeat: () => {
       const repeat = queue.cycleRepeat();
       syncTransportControls();
+      syncUpcoming();
+      syncMprisControls();
       return repeat;
     },
     onToggleFavorite: () => {
@@ -246,11 +268,15 @@ async function boot(): Promise<void> {
       const shuffled = queue.toggleShuffle();
       syncTransportControls();
       refreshQueuePanel();
+      syncUpcoming();
+      syncMprisControls();
       return shuffled;
     },
     onCycleRepeat: () => {
       const repeat = queue.cycleRepeat();
       syncTransportControls();
+      syncUpcoming();
+      syncMprisControls();
       return repeat;
     },
     onToggleFavorite: () => void toggleNowPlayingFavorite(),
@@ -286,10 +312,12 @@ async function boot(): Promise<void> {
     onPlayNext: (track) => {
       queue.insertNext(track);
       refreshQueuePanel();
+      syncUpcoming();
     },
     onAddToQueue: (track) => {
       queue.append(track);
       refreshQueuePanel();
+      syncUpcoming();
     },
   });
 
@@ -337,10 +365,14 @@ async function boot(): Promise<void> {
       queue.toggleShuffle();
       syncTransportControls();
       refreshQueuePanel();
+      syncUpcoming();
+      syncMprisControls();
     },
     onCycleRepeat: () => {
       queue.cycleRepeat();
       syncTransportControls();
+      syncUpcoming();
+      syncMprisControls();
     },
     onOpenQueue: () => queuePanel.open(),
     onToggleLyrics: () => lyricsPanel.toggle(),
@@ -475,6 +507,8 @@ async function boot(): Promise<void> {
   });
 
   void api.events.onPlaybackEnded(async () => {
+    // No preloaded next track: the engine stopped. Advance the queue and
+    // start the next track explicitly (repeat-one replays the current track).
     const next =
       queue.getRepeatMode() === "one" ? queue.getCurrent() : queue.advance();
     if (next) {
@@ -490,6 +524,47 @@ async function boot(): Promise<void> {
     void recentPage.refresh();
     void playlists.refresh();
     refreshQueuePanel();
+  });
+
+  void api.events.onPlaybackAdvanced(async (payload) => {
+    // Gapless handoff: the engine already swapped to the preloaded track. Do
+    // NOT call play_track again — just advance the queue to match and refresh.
+    const advanced = queue.advance();
+    const track = advanced ?? payload.track;
+    saveLastTrackId(track.id);
+    libraryPage.setPlayingTrackId(track.id);
+    await setNowPlayingTrack(track);
+    void libraryPage.refresh();
+    refreshQueuePanel();
+    syncUpcoming();
+    void statsPage.refresh();
+    void recentPage.refresh();
+  });
+
+  // Desktop media keys / playerctl → route through the frontend queue.
+  void api.events.onMprisNext(() => {
+    void goNext();
+  });
+  void api.events.onMprisPrevious(() => {
+    void goPrev();
+  });
+  void api.events.onMprisShuffle((shuffle) => {
+    // The desktop asked to set shuffle to a specific value; toggle to match.
+    if (queue.isShuffled() !== shuffle) {
+      queue.toggleShuffle();
+      syncTransportControls();
+      refreshQueuePanel();
+      syncUpcoming();
+    }
+  });
+  void api.events.onMprisLoop((repeat) => {
+    const target = repeat === "one" ? "one" : repeat === "all" ? "all" : "off";
+    while (queue.getRepeatMode() !== target) {
+      queue.cycleRepeat();
+    }
+    syncTransportControls();
+    refreshQueuePanel();
+    syncUpcoming();
   });
 
   try {
@@ -526,7 +601,22 @@ async function restoreNowPlayingBar(
   playerBar.sync(state);
   timer.step("getPlaybackState");
 
-  const trackId = state.trackId ?? getLastTrackId();
+  let trackId = state.trackId ?? getLastTrackId();
+  // Resume: on a fresh launch the engine is stopped, so restore the saved
+  // position (loaded paused; the user presses play to continue).
+  if (!state.trackId) {
+    try {
+      const resume = await api.playback.getResumeState();
+      if (resume?.trackId) {
+        trackId = resume.trackId;
+        await api.playback.loadTrackPaused(resume.trackId, resume.positionSecs);
+        timer.step("loadTrackPaused");
+      }
+    } catch {
+      /* resume is best-effort */
+    }
+  }
+
   if (!trackId) {
     playerBar.setTrack(null);
     timer.finish("no saved track");
