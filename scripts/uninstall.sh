@@ -11,7 +11,8 @@ if [ -n "$launcher" ] && grep -q 'brook-cli: uninstall' "$launcher" 2>/dev/null;
   exec brook --uninstall "$@"
 fi
 
-INSTALL_DIR="${BROOK_INSTALL_DIR:-${HOME}/.local/bin}"
+BIN_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${BROOK_INSTALL_DIR:-${HOME}/Applications}"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}"
 ICON_PATH="${DATA_DIR}/icons/hicolor/256x256/apps/brook.png"
 DESKTOP_PATH="${DATA_DIR}/applications/brook.desktop"
@@ -30,7 +31,7 @@ remove_path() {
 main() {
   echo "brook is not on PATH; removing files under ${INSTALL_DIR}" >&2
   shopt -s nullglob
-  for path in "${INSTALL_DIR}"/brook "${INSTALL_DIR}"/brook.AppImage "${INSTALL_DIR}"/Brook_*.AppImage; do
+  for path in "${BIN_DIR}/brook" "${BIN_DIR}"/Brook_*.AppImage "${INSTALL_DIR}"/brook.AppImage "${INSTALL_DIR}"/Brook_*.AppImage; do
     remove_path "$path"
   done
   remove_path "$DESKTOP_PATH"

@@ -4,18 +4,19 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.sh | bash
 #   BROOK_VERSION=v0.1.0 bash scripts/install.sh
-#   BROOK_INSTALL_DIR=~/.local/bin bash scripts/install.sh
+#   BROOK_INSTALL_DIR=~/Applications bash scripts/install.sh
 #
 # Environment:
 #   BROOK_VERSION      Release tag (e.g. v0.1.0) or "latest" (default)
-#   BROOK_INSTALL_DIR  Binary directory (default: ~/.local/bin)
+#   BROOK_INSTALL_DIR  AppImage directory (default: ~/Applications)
 #   BROOK_VERIFY       Set to 1 to verify SHA256SUMS when available
 
 set -euo pipefail
 
 REPO="5kyguy/brook"
 APP_NAME="Brook"
-INSTALL_DIR="${BROOK_INSTALL_DIR:-${HOME}/.local/bin}"
+BIN_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${BROOK_INSTALL_DIR:-${HOME}/Applications}"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}"
 ICON_DIR="${DATA_DIR}/icons/hicolor/256x256/apps"
 DESKTOP_DIR="${DATA_DIR}/applications"
@@ -97,7 +98,7 @@ verify_checksum() {
 
 write_launcher() {
   local appimage_path="$1"
-  local launcher_path="${INSTALL_DIR}/brook"
+  local launcher_path="${BIN_DIR}/brook"
   cat >"$launcher_path" <<EOF
 #!/usr/bin/env bash
 # brook-cli: uninstall
@@ -110,6 +111,18 @@ for lib in /usr/lib/libwayland-client.so.0 /usr/lib64/libwayland-client.so.0; do
   if [ -f "\$lib" ]; then
     export LD_PRELOAD="\${lib}\${LD_PRELOAD:+:\$LD_PRELOAD}"
     break
+  fi
+done
+# Uninstall removes a launcher beside the AppImage. This command lives in
+# ~/.local/bin, so remove it once uninstall returns.
+for arg in "\$@"; do
+  if [ "\$arg" = "--uninstall" ]; then
+    set +e
+    "\$APPIMAGE" "\$@"
+    status=\$?
+    set -e
+    rm -f -- "\$0"
+    exit "\$status"
   fi
 done
 exec "\$APPIMAGE" "\$@"
@@ -155,7 +168,7 @@ main() {
   asset_name="${asset_line%%$'\t'*}"
   asset_url="${asset_line#*$'\t'}"
 
-  mkdir -p "$INSTALL_DIR" "$DESKTOP_DIR" "$ICON_DIR"
+  mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
 
   local appimage_path="${INSTALL_DIR}/${asset_name}"
   echo "Downloading Brook ${tag} (${arch})..."
@@ -173,12 +186,12 @@ main() {
   echo "Installing icon..."
   curl -fsSL "$ICON_URL" -o "${ICON_DIR}/brook.png"
 
-  write_desktop_entry "${INSTALL_DIR}/brook"
+  write_desktop_entry "${BIN_DIR}/brook"
 
-  if ! echo ":${PATH}:" | grep -q ":${INSTALL_DIR}:"; then
+  if ! echo ":${PATH}:" | grep -q ":${BIN_DIR}:"; then
     echo
-    echo "Add ${INSTALL_DIR} to your PATH, for example:"
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    echo "Add ${BIN_DIR} to your PATH, for example:"
+    echo "  export PATH=\"${BIN_DIR}:\$PATH\""
   fi
 
   echo

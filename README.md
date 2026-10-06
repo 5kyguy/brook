@@ -13,7 +13,7 @@ Requires [Rust](https://rustup.rs/), [Bun](https://bun.sh/), and [Tauri prerequi
 
 ## Install (Linux)
 
-Requires `curl`, `jq`, and `libfuse2` (for AppImage). Installs to `~/.local/bin`.
+Requires `curl`, `jq`, and `libfuse2` (for AppImage). The AppImage installs to `~/Applications` and the `brook` command to `~/.local/bin`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.sh | bash

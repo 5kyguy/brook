@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+### Install
+
+- The AppImage installs to `~/Applications`, and the `brook` command stays in `~/.local/bin`
+- `brook --uninstall` removes the AppImage, the command, the desktop entry, and the icon when those files are in different folders
+
 ## 0.1.0
 
 ### Playback

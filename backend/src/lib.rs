@@ -534,9 +534,9 @@ fn arg_flag(flag: &str) -> bool {
     std::env::args().any(|arg| arg == flag)
 }
 
-/// Remove the AppImage install: the bundle, the `brook` launcher next to it,
-/// the desktop entry, and the icon. The music folder stays. `clear_history`
-/// also removes listening history and cached cover art.
+/// Remove the AppImage install: the bundle, the `brook` command, the desktop
+/// entry, and the icon. The music folder stays. `clear_history` also removes
+/// listening history and cached cover art.
 fn uninstall(clear_history: bool) -> Result<(), String> {
     let appimage = std::env::var_os("APPIMAGE")
         .map(std::path::PathBuf::from)
@@ -619,13 +619,53 @@ fn remove_cover_cache() -> Result<Option<std::path::PathBuf>, String> {
 }
 
 fn launcher_for(appimage: &std::path::Path) -> Option<std::path::PathBuf> {
-    let launcher = appimage.parent()?.join("brook");
-    if launcher == appimage || !launcher.is_file() {
-        return None;
+    launcher_candidates(appimage).into_iter().find(|launcher| {
+        launcher != appimage && launcher_text_matches(launcher, appimage)
+    })
+}
+
+/// The AppImage lives in `~/Applications`. The `brook` command is
+/// `~/.local/bin/brook`, or a `brook` script beside the bundle.
+fn launcher_candidates(appimage: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(parent) = appimage.parent() {
+        paths.push(parent.join("brook"));
     }
-    let text = std::fs::read_to_string(&launcher).ok()?;
-    text.contains(&appimage.display().to_string())
-        .then_some(launcher)
+    if let Some(home) = dirs::home_dir() {
+        paths.push(home.join(".local/bin/brook"));
+    }
+    paths
+}
+
+fn launcher_text_matches(launcher: &std::path::Path, appimage: &std::path::Path) -> bool {
+    let Ok(text) = std::fs::read_to_string(launcher) else {
+        return false;
+    };
+    if text.contains(&appimage.display().to_string()) {
+        return true;
+    }
+    let Some(recorded) = recorded_appimage(&text) else {
+        return false;
+    };
+    let Some(running_name) = appimage.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    let Some(recorded_name) = recorded.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    let Some(recorded_stem) = recorded_name.strip_suffix(".AppImage") else {
+        return false;
+    };
+    running_name
+        .strip_suffix(".AppImage")
+        .is_some_and(|name| name.starts_with(&format!("{recorded_stem}_")))
+}
+
+fn recorded_appimage(text: &str) -> Option<std::path::PathBuf> {
+    text.lines().find_map(|line| {
+        let path = line.trim().strip_prefix("APPIMAGE=")?.trim_matches('"');
+        (!path.is_empty()).then(|| std::path::PathBuf::from(path))
+    })
 }
 
 fn xdg_data_home() -> Option<std::path::PathBuf> {
@@ -698,8 +738,18 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(launcher_for(&appimage), Some(launcher));
+        assert_eq!(launcher_for(&appimage), Some(launcher.clone()));
         assert_eq!(launcher_for(&dir.join("missing.AppImage")), None);
+
+        let moved = dir.join("Brook_0.0.6_amd64_deadbeef.AppImage");
+        std::fs::write(&moved, b"appimage").unwrap();
+        std::fs::write(
+            &launcher,
+            "#!/bin/bash\n# brook-cli: uninstall\nAPPIMAGE=\"/tmp/not/Brook_0.0.6_amd64.AppImage\"\n",
+        )
+        .unwrap();
+        assert_eq!(launcher_for(&moved), Some(launcher));
+        assert_eq!(launcher_for(&dir.join("Other.AppImage")), None);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
