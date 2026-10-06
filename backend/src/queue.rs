@@ -330,6 +330,17 @@ mod tests {
     }
 
     #[test]
+    fn advance_stays_inside_the_queued_album() {
+        let mut queue = queue_of(&["album/10.flac", "album/2.flac"], "album/10.flac");
+        assert_eq!(queue.advance().unwrap().id, "album/2.flac");
+        assert!(queue.advance().is_none());
+        assert_eq!(
+            queue.current().map(|track| track.id.as_str()),
+            Some("album/2.flac")
+        );
+    }
+
+    #[test]
     fn next_stops_at_end_until_repeat_all() {
         let mut queue = queue_of(&["a", "b"], "b");
         assert!(queue.next().is_none());

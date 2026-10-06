@@ -21,10 +21,12 @@ pub fn save_resume_state(
     track_id: Option<String>,
     position_secs: f64,
 ) -> Result<(), String> {
+    let queue_ids = state.session.queue_ids_for(track_id.as_deref());
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.set_resume_state(&ResumeState {
         track_id,
         position_secs,
+        queue_ids,
     })
 }
 

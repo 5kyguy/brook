@@ -23,6 +23,22 @@ impl Session {
         let queue = self.queue.lock().map_err(|e| e.to_string())?;
         Ok(queue.snapshot())
     }
+
+    /// Ids in play order when `track_id` is in the queue. Empty when it is not,
+    /// so a save does not attach this track to an unrelated list.
+    pub fn queue_ids_for(&self, track_id: Option<&str>) -> Vec<String> {
+        let Some(id) = track_id else {
+            return Vec::new();
+        };
+        let Ok(snap) = self.snapshot() else {
+            return Vec::new();
+        };
+        if snap.tracks.iter().any(|track| track.id == id) {
+            snap.tracks.into_iter().map(|track| track.id).collect()
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 impl Default for Session {
@@ -47,27 +63,80 @@ pub fn install(app: &AppHandle) {
     });
 }
 
-/// Load the saved track paused and put it alone in the queue. No-op when
-/// nothing was saved. Runs for every launch, including `--headless`.
+/// Load the saved track paused inside its saved queue. An older save with no
+/// queue ids uses that track's album, in path order. No-op when nothing was
+/// saved. Runs for every launch, including `--headless`.
 pub fn restore_resume(app: &AppHandle) {
-    let Some((id, position)) = saved_resume(app) else {
+    let Some(resume) = saved_resume(app) else {
         return;
     };
-    let Ok((row, track)) = load_pair(app, &id) else {
+    let Some(id) = resume.track_id else {
         return;
+    };
+    let ids = if resume.queue_ids.iter().any(|queued| queued == &id) {
+        resume.queue_ids
+    } else {
+        album_ids(app, &id).unwrap_or_else(|_| vec![id.clone()])
+    };
+    let Ok(tracks) = load_existing(app, &ids) else {
+        return;
+    };
+    if tracks.is_empty() {
+        return;
+    }
+    let current = if tracks.iter().any(|track| track.id == id) {
+        id
+    } else {
+        tracks[0].id.clone()
     };
     if queue_mut(app, |queue| {
-        queue.set_queue(vec![track.clone()], &id);
+        queue.set_queue(tracks, &current);
     })
     .is_err()
     {
         return;
     }
+    let Ok((row, track)) = load_pair(app, &current) else {
+        return;
+    };
     let state = app.state::<AppState>();
-    if state.audio.load_paused(&row, &track, position).is_err() {
+    if state
+        .audio
+        .load_paused(&row, &track, resume.position_secs)
+        .is_err()
+    {
         return;
     }
     let _ = publish(app);
+}
+
+/// Queue the album this track belongs to (same artist and album, path order)
+/// and start the track. A track with no album is a one-track queue.
+pub fn play_track_album(app: &AppHandle, id: &str) -> Result<QueueSnapshot, String> {
+    let ids = album_ids(app, id)?;
+    let current = if ids.iter().any(|queued| queued == id) {
+        id.to_string()
+    } else {
+        ids.first()
+            .cloned()
+            .ok_or_else(|| format!("Track not found: {id}"))?
+    };
+    replace_queue_and_play(app, &ids, &current)
+}
+
+/// Queue every track on the playlist and start the first one.
+pub fn play_playlist(app: &AppHandle, id: &str) -> Result<QueueSnapshot, String> {
+    let tracks = {
+        let state = app.state::<AppState>();
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.get_playlist_tracks(id)?
+    };
+    if tracks.is_empty() {
+        return Err("Playlist is empty".to_string());
+    }
+    let ids: Vec<String> = tracks.into_iter().map(|track| track.id).collect();
+    let current = ids[0].clone();
+    replace_queue_and_play(app, &ids, &current)
 }
 
 pub fn replace_queue_and_play(
@@ -160,9 +229,8 @@ pub fn go_previous(app: &AppHandle) -> Result<QueueSnapshot, String> {
         return publish(app);
     }
     let prev = queue_mut(app, |queue| queue.retreat())?;
-    match prev {
-        Some(track) => play_id(app, &track.id)?,
-        None => app.state::<AppState>().audio.seek(0.0)?,
+    if let Some(track) = prev {
+        play_id(app, &track.id)?;
     }
     publish(app)
 }
@@ -219,12 +287,20 @@ fn on_ended(app: &AppHandle) {
     let _ = app.emit("playback:session-idle", ());
 }
 
-fn saved_resume(app: &AppHandle) -> Option<(String, f64)> {
+fn saved_resume(app: &AppHandle) -> Option<crate::models::ResumeState> {
     let state = app.state::<AppState>();
     let db = state.db.lock().ok()?;
-    let resume = db.get_resume_state().ok()??;
-    let id = resume.track_id?;
-    Some((id, resume.position_secs))
+    db.get_resume_state().ok()?
+}
+
+fn album_ids(app: &AppHandle, id: &str) -> Result<Vec<String>, String> {
+    let state = app.state::<AppState>();
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let track = db.get_track(id)?;
+    match track.album.as_deref().filter(|album| !album.is_empty()) {
+        Some(album) => db.album_track_ids(track.artist.as_deref(), album),
+        None => Ok(vec![id.to_string()]),
+    }
 }
 
 fn play_id(app: &AppHandle, id: &str) -> Result<(), String> {
@@ -287,6 +363,18 @@ fn load_many(app: &AppHandle, ids: &[String]) -> Result<Vec<crate::models::Track
     let mut tracks = Vec::with_capacity(ids.len());
     for id in ids {
         tracks.push(db.get_track(id)?);
+    }
+    Ok(tracks)
+}
+
+fn load_existing(app: &AppHandle, ids: &[String]) -> Result<Vec<crate::models::Track>, String> {
+    let state = app.state::<AppState>();
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut tracks = Vec::new();
+    for id in ids {
+        if let Ok(track) = db.get_track(id) {
+            tracks.push(track);
+        }
     }
     Ok(tracks)
 }

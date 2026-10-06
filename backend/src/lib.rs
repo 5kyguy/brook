@@ -286,6 +286,8 @@ pub mod lyrics {
     }
 }
 
+mod cli;
+
 pub mod audio;
 pub mod commands;
 pub mod cover_art;
@@ -334,13 +336,23 @@ pub fn run() {
             std::process::exit(1);
         }
     }
+    if arg_flag("--search") {
+        let query = arg_value("--search").unwrap_or_default();
+        if let Err(error) = cli::print_search(&query) {
+            eprintln!("brook: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     tauri::Builder::default()
         // Single-instance guard: a second launch hands its argv to the
-        // running process and exits. `--headless` is a no-op when a session
-        // is already up. A normal launch opens the window. `--quit` and
-        // `--uninstall` exit. File removal for `--uninstall` already happened
-        // in this process, before the builder started.
+        // running process and exits. `--search` never reaches this plugin.
+        // Play flags run here and do not open a window. `--headless` alone
+        // is a no-op when a session is already up. A normal launch opens the
+        // window. `--quit` and `--uninstall` exit. File removal for
+        // `--uninstall` already happened in this process, before the builder
+        // started.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // The D-Bus callback is not the GTK thread. Window creation has to
             // hop to the main thread.
@@ -355,6 +367,9 @@ pub fn run() {
                         }
                     }
                     app.exit(0);
+                    return;
+                }
+                if apply_play_argv(&app, &argv) {
                     return;
                 }
                 if argv.iter().any(|arg| arg == "--headless") {
@@ -415,6 +430,7 @@ pub fn run() {
             ));
             session::install(app.handle());
             session::restore_resume(app.handle());
+            apply_play_argv(app.handle(), &std::env::args().collect::<Vec<_>>());
             commands::theme::install(app.handle())?;
             setup_timer.log_step("AppState ready");
 
@@ -534,6 +550,45 @@ fn arg_flag(flag: &str) -> bool {
     std::env::args().any(|arg| arg == flag)
 }
 
+fn arg_value(flag: &str) -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    argv_value(&args, flag)
+}
+
+fn argv_value(args: &[String], flag: &str) -> Option<String> {
+    let pos = args.iter().position(|arg| arg == flag)?;
+    match args.get(pos + 1) {
+        Some(value) if !value.starts_with('-') => Some(value.clone()),
+        _ => Some(String::new()),
+    }
+}
+
+/// `--play-track` queues that track's album. `--play-playlist` queues the playlist.
+/// Returns whether a play flag was present.
+fn apply_play_argv(app: &tauri::AppHandle, argv: &[String]) -> bool {
+    let track = argv_value(argv, "--play-track").filter(|id| !id.is_empty());
+    let playlist = argv_value(argv, "--play-playlist").filter(|id| !id.is_empty());
+    if track.is_none() && playlist.is_none() {
+        return false;
+    }
+    if app.try_state::<AppState>().is_none() {
+        eprintln!("brook: player is still starting");
+        return true;
+    }
+    if let Some(id) = track {
+        if let Err(error) = session::play_track_album(app, &id) {
+            eprintln!("brook: {error}");
+        }
+        return true;
+    }
+    if let Some(id) = playlist {
+        if let Err(error) = session::play_playlist(app, &id) {
+            eprintln!("brook: {error}");
+        }
+    }
+    true
+}
+
 /// Remove the AppImage install: the bundle, the `brook` command, the desktop
 /// entry, and the icon. The music folder stays. `clear_history` also removes
 /// listening history and cached cover art.
@@ -619,9 +674,9 @@ fn remove_cover_cache() -> Result<Option<std::path::PathBuf>, String> {
 }
 
 fn launcher_for(appimage: &std::path::Path) -> Option<std::path::PathBuf> {
-    launcher_candidates(appimage).into_iter().find(|launcher| {
-        launcher != appimage && launcher_text_matches(launcher, appimage)
-    })
+    launcher_candidates(appimage)
+        .into_iter()
+        .find(|launcher| launcher != appimage && launcher_text_matches(launcher, appimage))
 }
 
 /// The AppImage lives in `~/Applications`. The `brook` command is

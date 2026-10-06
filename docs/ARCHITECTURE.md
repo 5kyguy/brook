@@ -320,8 +320,8 @@ CREATE TABLE app_settings (
 | `queue_clear` | — | `QueueSnapshot` | Keep the current track |
 | `queue_toggle_shuffle` | — | `QueueSnapshot` | |
 | `queue_cycle_repeat` | — | `QueueSnapshot` | `off` → `all` → `one` |
-| `queue_next` | — | `QueueSnapshot` | Next track. No-op at the end unless repeat wraps |
-| `queue_previous` | — | `QueueSnapshot` | Seek to 0 if position > 3s, otherwise the previous track |
+| `queue_next` | — | `QueueSnapshot` | Next queued track. Stays on the current track at the end of the queue |
+| `queue_previous` | — | `QueueSnapshot` | Seek to 0 if position > 3s, otherwise the previous queued track. Stays put at the start of the queue |
 | `play_current` | — | `()` | Start the queued track when the engine is stopped |
 | `set_upcoming_track` | `id: string \| null` | `()` | Low-level preload. The session sets this from the queue after every change |
 | `pause` | — | `()` | |
@@ -541,9 +541,9 @@ Tauri is configured to use `frontend/` as the web root and `backend/` as the Rus
 | `/userplaylist/:id` | Playlist detail |
 | `/settings` | Theme, visuals, music folder |
 
-In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in the Rust session (`backend/src/queue.rs`). It is not persisted to SQLite. The queue panel is a view of `get_queue` / `queue:changed`.
+In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in the Rust session (`backend/src/queue.rs`). Resume state stores the queued track ids with the current track, so a later launch continues that album or playlist. The queue panel is a view of `get_queue` / `queue:changed`.
 
-`brook --headless` starts the session with no window. A second launch without that flag opens the window on the running process. Closing the window hides it when the process was started headless. `brook --quit` exits the process. `brook --uninstall` removes the AppImage install and leaves library data in place. `brook --uninstall --clear-history` also removes listening history and cached cover art.
+`brook --headless` starts the session with no window. A second launch without that flag opens the window on the running process. Closing the window hides it when the process was started headless. `brook --quit` exits the process. `brook --search <query>` prints matching tracks and playlists as JSON without starting playback. An empty query lists playlists only. `brook --headless --play-track <id>` queues that track's album (same artist, path order) and starts it. `brook --headless --play-playlist <id>` queues that playlist and starts the first track. When a session is already running, the play flags are handled there and do not open a window. `brook --uninstall` removes the AppImage install and leaves library data in place. `brook --uninstall --clear-history` also removes listening history and cached cover art.
 
 ## Implementation status (v1)
 

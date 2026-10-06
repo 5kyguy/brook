@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2
+
+### Playback
+
+- Next and previous stay inside the album or playlist that is playing, and a restart continues that queue
+- An older resume that only saved the current track continues that track's album
+- `brook --search` prints matching tracks and playlists
+- `brook --headless --play-track` plays that track's album
+- `brook --headless --play-playlist` plays that playlist
+
 ## 0.1.1
 
 ### Install

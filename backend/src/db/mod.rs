@@ -4,7 +4,7 @@ pub mod stats;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use uuid::Uuid;
 
 use crate::metadata::TrackMetadata;
@@ -48,6 +48,17 @@ impl Database {
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
+    }
+
+    /// Read a database another process may be writing. Does not migrate.
+    pub fn open_readonly(path: &Path) -> Result<Self, String> {
+        let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        conn.busy_timeout(std::time::Duration::from_secs(3))
+            .map_err(|e| e.to_string())?;
+        conn.execute_batch("PRAGMA query_only = ON;")
+            .map_err(|e| e.to_string())?;
+        Ok(Self { conn })
     }
 
     fn migrate(&self) -> Result<(), String> {
@@ -371,6 +382,125 @@ impl Database {
     pub fn get_track(&self, id: &str) -> Result<Track, String> {
         let row = self.get_track_row(id)?;
         Ok(row_to_track(row, self.is_favorite(id)?))
+    }
+
+    /// Tracks on one album, same artist, ordered by file id (the relative path).
+    /// `artist` empty or missing matches rows whose artist is null.
+    pub fn album_track_ids(
+        &self,
+        artist: Option<&str>,
+        album: &str,
+    ) -> Result<Vec<String>, String> {
+        let artist = artist.filter(|value| !value.is_empty());
+        let mode: i32 = i32::from(artist.is_some());
+        let artist_value = artist.unwrap_or("");
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id FROM tracks
+                 WHERE album = ?1
+                   AND (
+                     (?2 = 1 AND artist = ?3)
+                     OR (?2 = 0 AND artist IS NULL)
+                   )
+                 ORDER BY id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![album, mode, artist_value], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
+    }
+
+    /// Tracks and playlists for the bar picker. An empty query lists playlists only.
+    pub fn search_library_json(&self, query: &str) -> Result<String, String> {
+        let tracks = self.search_tracks(query)?;
+        let playlists = self.search_playlists(query)?;
+        serde_json::to_string(&serde_json::json!({
+            "tracks": tracks,
+            "playlists": playlists,
+        }))
+        .map_err(|e| e.to_string())
+    }
+
+    fn search_tracks(&self, query: &str) -> Result<Vec<serde_json::Value>, String> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let pattern = format!("%{query}%");
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id,
+                        COALESCE(NULLIF(title, ''), id),
+                        COALESCE(artist, ''),
+                        COALESCE(album, '')
+                 FROM tracks
+                 WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1 OR id LIKE ?1
+                 ORDER BY title COLLATE NOCASE ASC, id ASC
+                 LIMIT 12",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![pattern], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "title": row.get::<_, String>(1)?,
+                    "artist": row.get::<_, String>(2)?,
+                    "album": row.get::<_, String>(3)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
+    }
+
+    fn search_playlists(&self, query: &str) -> Result<Vec<serde_json::Value>, String> {
+        let query = query.trim();
+        let pattern = format!("%{query}%");
+        let sql = if query.is_empty() {
+            "SELECT id, name FROM playlists
+             ORDER BY
+               CASE kind
+                 WHEN 'weekly_top' THEN 1
+                 WHEN 'monthly_top' THEN 2
+                 WHEN 'quarterly_top' THEN 3
+                 WHEN 'yearly_top' THEN 4
+                 ELSE 10
+               END,
+               name COLLATE NOCASE ASC
+             LIMIT 8"
+        } else {
+            "SELECT id, name FROM playlists
+             WHERE name LIKE ?1
+             ORDER BY
+               CASE kind
+                 WHEN 'weekly_top' THEN 1
+                 WHEN 'monthly_top' THEN 2
+                 WHEN 'quarterly_top' THEN 3
+                 WHEN 'yearly_top' THEN 4
+                 ELSE 10
+               END,
+               name COLLATE NOCASE ASC
+             LIMIT 8"
+        };
+        let mut stmt = self.conn.prepare(sql).map_err(|e| e.to_string())?;
+        let map = |row: &rusqlite::Row<'_>| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "name": row.get::<_, String>(1)?,
+            }))
+        };
+        let rows = if query.is_empty() {
+            stmt.query_map([], map)
+        } else {
+            stmt.query_map(params![pattern], map)
+        }
+        .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn get_tracks(&self, filter: Option<&TrackFilter>) -> Result<Vec<Track>, String> {
@@ -1214,6 +1344,119 @@ mod tests {
     }
 
     #[test]
+    fn album_tracks_follow_path_order_and_stay_on_the_album() {
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut db = Database::open(&dir.join("test.db")).unwrap();
+
+        for (id, title, artist, album) in [
+            ("album/2.flac", "Alpha", "Artist", "Album"),
+            ("album/10.flac", "Bravo", "Artist", "Album"),
+            ("other/1.flac", "Other", "Someone", "Album"),
+            ("album/nope.flac", "Nope", "Artist", "Different"),
+        ] {
+            db.upsert_track(
+                &ScannedFile {
+                    id: id.into(),
+                    relative_path: id.into(),
+                    absolute_path: format!("/music/{id}"),
+                    extension: "flac".into(),
+                    file_size: 1,
+                    modified_ms: 1,
+                    has_lrc: false,
+                    lrc_path: None,
+                },
+                &TrackMetadata {
+                    title: Some(title.into()),
+                    artist: Some(artist.into()),
+                    album: Some(album.into()),
+                    genre: None,
+                    year: None,
+                    duration_secs: None,
+                    embedded_lyrics: None,
+                    replay_gain_track_db: None,
+                    replay_gain_track_peak: None,
+                },
+            )
+            .unwrap();
+        }
+
+        let ids = db.album_track_ids(Some("Artist"), "Album").unwrap();
+        assert_eq!(ids, vec!["album/10.flac", "album/2.flac"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resume_state_round_trips_queue_ids() {
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = Database::open(&dir.join("test.db")).unwrap();
+        db.set_resume_state(&crate::models::ResumeState {
+            track_id: Some("album/2.flac".into()),
+            position_secs: 4.0,
+            queue_ids: vec!["album/10.flac".into(), "album/2.flac".into()],
+        })
+        .unwrap();
+        let saved = db.get_resume_state().unwrap().unwrap();
+        assert_eq!(saved.track_id.as_deref(), Some("album/2.flac"));
+        assert_eq!(saved.position_secs, 4.0);
+        assert_eq!(
+            saved.queue_ids,
+            vec!["album/10.flac".to_string(), "album/2.flac".to_string()]
+        );
+
+        let legacy = r#"{"trackId":"album/2.flac","positionSecs":1.0}"#;
+        let parsed: crate::models::ResumeState = serde_json::from_str(legacy).unwrap();
+        assert!(parsed.queue_ids.is_empty());
+        assert_eq!(parsed.position_secs, 1.0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_lists_playlists_when_empty_and_filters_tracks() {
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut db = Database::open(&dir.join("test.db")).unwrap();
+        db.upsert_track(
+            &ScannedFile {
+                id: "album/2.flac".into(),
+                relative_path: "album/2.flac".into(),
+                absolute_path: "/music/album/2.flac".into(),
+                extension: "flac".into(),
+                file_size: 1,
+                modified_ms: 1,
+                has_lrc: false,
+                lrc_path: None,
+            },
+            &TrackMetadata {
+                title: Some("Alpha".into()),
+                artist: Some("Artist".into()),
+                album: Some("Album".into()),
+                genre: None,
+                year: None,
+                duration_secs: None,
+                embedded_lyrics: None,
+                replay_gain_track_db: None,
+                replay_gain_track_peak: None,
+            },
+        )
+        .unwrap();
+        let playlist = db.create_playlist("Morning").unwrap();
+
+        let empty: serde_json::Value =
+            serde_json::from_str(&db.search_library_json("").unwrap()).unwrap();
+        assert!(empty["tracks"].as_array().unwrap().is_empty());
+        assert_eq!(empty["playlists"][0]["name"], "Morning");
+        assert_eq!(empty["playlists"][0]["id"], playlist.id);
+
+        let hits: serde_json::Value =
+            serde_json::from_str(&db.search_library_json("alpha").unwrap()).unwrap();
+        assert_eq!(hits["tracks"][0]["id"], "album/2.flac");
+        assert!(hits["playlists"].as_array().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn get_tracks_sort_by_title_uses_collate_before_direction() {
         use crate::models::TrackFilter;
 
@@ -1421,6 +1664,7 @@ mod tests {
         db.set_resume_state(&crate::models::ResumeState {
             track_id: Some("song.flac".into()),
             position_secs: 12.0,
+            queue_ids: Vec::new(),
         })
         .unwrap();
         assert!(db.toggle_favorite("song.flac").unwrap());

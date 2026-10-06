@@ -439,12 +439,14 @@ fn handle_play(
 
 fn save_resume(app: &AppHandle, track_id: Option<&str>, position_secs: f64) {
     let state = app.state::<AppState>();
+    let queue_ids = state.session.queue_ids_for(track_id);
     let Ok(db) = state.db.lock() else {
         return;
     };
     let resume = crate::models::ResumeState {
         track_id: track_id.map(|s| s.to_string()),
         position_secs,
+        queue_ids,
     };
     if let Err(e) = db.set_resume_state(&resume) {
         eprintln!("[brook-audio] resume save failed: {e}");

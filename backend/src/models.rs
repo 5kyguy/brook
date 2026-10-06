@@ -156,6 +156,9 @@ pub struct SmartPlaylistConfig {
 pub struct ResumeState {
     pub track_id: Option<String>,
     pub position_secs: f64,
+    /// Play order to restore. Empty on older saves, which means "this track's album".
+    #[serde(default)]
+    pub queue_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
