@@ -19,11 +19,11 @@ Requires `curl`, `jq`, and `libfuse2` (for AppImage). Installs to `~/.local/bin`
 curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/install.sh | bash
 ```
 
-Uninstall:
+Uninstall with `brook --uninstall`. That removes the AppImage, the `brook` command, the desktop entry, and the icon. The music folder and listening history stay.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/5kyguy/brook/main/scripts/uninstall.sh | bash
-```
+You can remove the cache (listening history and cover art) with `brook --uninstall --clear-history`. Playlists, likes, and the music folder stay.
+
+`brook --headless` starts playback with no window. `brook --quit` stops that process. A later `brook` opens the window on the running session.
 
 ## License
 

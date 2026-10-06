@@ -924,6 +924,35 @@ impl Database {
         Ok(())
     }
 
+    /// Drop play history, listening stats, resume, and chart lists built from them.
+    /// Tracks, likes, and user playlists stay.
+    pub fn clear_listening_history(&mut self) -> Result<(), String> {
+        self.conn
+            .busy_timeout(std::time::Duration::from_secs(2))
+            .map_err(|e| e.to_string())?;
+        self.conn
+            .execute_batch(
+                "DELETE FROM play_history;
+                 DELETE FROM listening_stats;
+                 DELETE FROM app_settings WHERE key = 'resume_state';",
+            )
+            .map_err(|e| e.to_string())?;
+        for id in [
+            charts::ID_WEEKLY_TOP,
+            charts::ID_MONTHLY_TOP,
+            charts::ID_QUARTERLY_TOP,
+            charts::ID_YEARLY_TOP,
+        ] {
+            self.conn
+                .execute(
+                    "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+                    params![id],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
     /// Drop scanned library data when the music root changes (stats/history too).
     pub fn reset_library_tracks(&mut self) -> Result<(), String> {
         self.conn
@@ -1355,5 +1384,62 @@ mod tests {
         };
         let tracks = db.evaluate_smart_playlist(&config).unwrap();
         assert_eq!(tracks.len(), 1);
+    }
+
+    #[test]
+    fn clear_listening_history_keeps_tracks_and_likes() {
+        let dir = std::env::temp_dir().join(format!("brook-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut db = Database::open(&dir.join("test.db")).unwrap();
+
+        let file = ScannedFile {
+            id: "song.flac".into(),
+            relative_path: "song.flac".into(),
+            absolute_path: "/music/song.flac".into(),
+            extension: "flac".into(),
+            file_size: 1,
+            modified_ms: 1,
+            has_lrc: false,
+            lrc_path: None,
+        };
+        db.upsert_track(
+            &file,
+            &TrackMetadata {
+                title: Some("Song".into()),
+                artist: None,
+                album: None,
+                genre: None,
+                year: None,
+                duration_secs: Some(180.0),
+                embedded_lyrics: None,
+                replay_gain_track_db: None,
+                replay_gain_track_peak: None,
+            },
+        )
+        .unwrap();
+        db.record_play("song.flac", 40.0, 180.0).unwrap();
+        db.set_resume_state(&crate::models::ResumeState {
+            track_id: Some("song.flac".into()),
+            position_secs: 12.0,
+        })
+        .unwrap();
+        assert!(db.toggle_favorite("song.flac").unwrap());
+
+        db.clear_listening_history().unwrap();
+
+        let history: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM play_history", [], |row| row.get(0))
+            .unwrap();
+        let stats: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM listening_stats", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(history, 0);
+        assert_eq!(stats, 0);
+        assert!(db.get_resume_state().unwrap().is_none());
+        assert!(db.get_track("song.flac").unwrap().is_favorite);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

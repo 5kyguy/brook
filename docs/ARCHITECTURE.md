@@ -543,7 +543,7 @@ Tauri is configured to use `frontend/` as the web root and `backend/` as the Rus
 
 In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in the Rust session (`backend/src/queue.rs`). It is not persisted to SQLite. The queue panel is a view of `get_queue` / `queue:changed`.
 
-`brook --headless` starts the session with no window. A second launch without that flag opens the window on the running process. Closing the window hides it when the process was started headless. `brook --quit` exits the process.
+`brook --headless` starts the session with no window. A second launch without that flag opens the window on the running process. Closing the window hides it when the process was started headless. `brook --quit` exits the process. `brook --uninstall` removes the AppImage install and leaves library data in place. `brook --uninstall --clear-history` also removes listening history and cached cover art.
 
 ## Implementation status (v1)
 

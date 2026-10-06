@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Remove a Brook AppImage install created by scripts/install.sh.
+# Remove a Brook AppImage install.
+#
+# Prefer the installed command. This script remains for installs that are not
+# on PATH.
 
 set -euo pipefail
+
+launcher="$(command -v brook || true)"
+if [ -n "$launcher" ] && grep -q 'brook-cli: uninstall' "$launcher" 2>/dev/null; then
+  exec brook --uninstall "$@"
+fi
 
 INSTALL_DIR="${BROOK_INSTALL_DIR:-${HOME}/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}"
@@ -20,6 +28,7 @@ remove_path() {
 }
 
 main() {
+  echo "brook is not on PATH; removing files under ${INSTALL_DIR}" >&2
   shopt -s nullglob
   for path in "${INSTALL_DIR}"/brook "${INSTALL_DIR}"/brook.AppImage "${INSTALL_DIR}"/Brook_*.AppImage; do
     remove_path "$path"

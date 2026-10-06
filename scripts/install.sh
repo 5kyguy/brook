@@ -100,6 +100,7 @@ write_launcher() {
   local launcher_path="${INSTALL_DIR}/brook"
   cat >"$launcher_path" <<EOF
 #!/usr/bin/env bash
+# brook-cli: uninstall
 set -euo pipefail
 APPIMAGE="${appimage_path}"
 : "\${WEBKIT_DISABLE_DMABUF_RENDERER:=1}"
@@ -111,7 +112,7 @@ for lib in /usr/lib/libwayland-client.so.0 /usr/lib64/libwayland-client.so.0; do
     break
   fi
 done
-exec "\$APPIMAGE" "\"
+exec "\$APPIMAGE" "\$@"
 EOF
   chmod +x "$launcher_path"
 }
@@ -183,7 +184,8 @@ main() {
   echo
   echo "Brook ${tag} installed."
   echo "Launch with: brook"
-  echo "Uninstall with: curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/uninstall.sh | bash"
+  echo "Uninstall with: brook --uninstall"
+  echo "Remove listening history with: brook --uninstall --clear-history"
 }
 
 main ""

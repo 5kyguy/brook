@@ -328,18 +328,32 @@ pub fn run() {
     configure_linux_webview();
     let headless = arg_flag("--headless");
     let quit = arg_flag("--quit");
+    if arg_flag("--uninstall") {
+        if let Err(error) = uninstall(arg_flag("--clear-history")) {
+            eprintln!("brook: {error}");
+            std::process::exit(1);
+        }
+    }
 
     tauri::Builder::default()
         // Single-instance guard: a second launch hands its argv to the
         // running process and exits. `--headless` is a no-op when a session
-        // is already up. A normal launch opens the window. `--quit` exits.
+        // is already up. A normal launch opens the window. `--quit` and
+        // `--uninstall` exit. File removal for `--uninstall` already happened
+        // in this process, before the builder started.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // The D-Bus callback is not the GTK thread. Window creation has to
             // hop to the main thread.
             let app = app.clone();
             let argv = argv.clone();
             let _ = app.clone().run_on_main_thread(move || {
-                if argv.iter().any(|arg| arg == "--quit") {
+                let uninstalling = argv.iter().any(|arg| arg == "--uninstall");
+                if uninstalling || argv.iter().any(|arg| arg == "--quit") {
+                    if uninstalling && argv.iter().any(|arg| arg == "--clear-history") {
+                        if let Err(error) = clear_listening_history(Some(&app)) {
+                            eprintln!("brook: {error}");
+                        }
+                    }
                     app.exit(0);
                     return;
                 }
@@ -363,7 +377,7 @@ pub fn run() {
             }
         })
         .setup(move |app| {
-            if quit {
+            if arg_flag("--uninstall") || quit {
                 app.handle().exit(0);
                 return Ok(());
             }
@@ -520,6 +534,124 @@ fn arg_flag(flag: &str) -> bool {
     std::env::args().any(|arg| arg == flag)
 }
 
+/// Remove the AppImage install: the bundle, the `brook` launcher next to it,
+/// the desktop entry, and the icon. The music folder stays. `clear_history`
+/// also removes listening history and cached cover art.
+fn uninstall(clear_history: bool) -> Result<(), String> {
+    let appimage = std::env::var_os("APPIMAGE")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_file())
+        .ok_or_else(|| {
+            "this copy was not installed as an AppImage, so nothing was removed".to_string()
+        })?;
+
+    let mut failed = false;
+    if let Some(launcher) = launcher_for(&appimage) {
+        failed |= !remove_install_file(&launcher);
+    }
+    if let Some(data) = xdg_data_home() {
+        failed |= !remove_install_file(&data.join("applications/brook.desktop"));
+        failed |= !remove_install_file(&data.join("icons/hicolor/256x256/apps/brook.png"));
+    }
+    failed |= !remove_install_file(&appimage);
+    if clear_history {
+        if let Err(error) = clear_listening_history(None) {
+            eprintln!("brook: {error}");
+        }
+    }
+    if failed {
+        return Err("uninstall did not remove every file".to_string());
+    }
+    println!("Brook uninstalled.");
+    Ok(())
+}
+
+/// App data directory from `tauri.conf.json` identifier `dev.skyguy.brook`.
+fn app_data_dir() -> Option<std::path::PathBuf> {
+    xdg_data_home().map(|data| data.join("dev.skyguy.brook"))
+}
+
+/// Delete listening history and cached cover art. Tracks, likes, and playlists stay.
+fn clear_listening_history(app: Option<&tauri::AppHandle>) -> Result<(), String> {
+    let cleared = if let Some(state) = app.and_then(|app| app.try_state::<AppState>()) {
+        let mut db = state
+            .db
+            .lock()
+            .map_err(|_| "listening history database is busy".to_string())?;
+        db.clear_listening_history()?;
+        true
+    } else {
+        clear_listening_history_file()?
+    };
+    let covers_removed = remove_cover_cache()?;
+    if cleared {
+        println!("removed listening history");
+    }
+    if let Some(covers) = covers_removed {
+        println!("removed {}", covers.display());
+    }
+    Ok(())
+}
+
+fn clear_listening_history_file() -> Result<bool, String> {
+    let Some(dir) = app_data_dir() else {
+        return Err("could not find the home directory".to_string());
+    };
+    let db_path = dir.join("brook.db");
+    if !db_path.is_file() {
+        return Ok(false);
+    }
+    let mut db = db::Database::open(&db_path)?;
+    db.clear_listening_history()?;
+    Ok(true)
+}
+
+fn remove_cover_cache() -> Result<Option<std::path::PathBuf>, String> {
+    let Some(covers) = app_data_dir().map(|dir| dir.join("covers")) else {
+        return Ok(None);
+    };
+    if !covers.exists() {
+        return Ok(None);
+    }
+    std::fs::remove_dir_all(&covers)
+        .map_err(|error| format!("could not remove {}: {error}", covers.display()))?;
+    Ok(Some(covers))
+}
+
+fn launcher_for(appimage: &std::path::Path) -> Option<std::path::PathBuf> {
+    let launcher = appimage.parent()?.join("brook");
+    if launcher == appimage || !launcher.is_file() {
+        return None;
+    }
+    let text = std::fs::read_to_string(&launcher).ok()?;
+    text.contains(&appimage.display().to_string())
+        .then_some(launcher)
+}
+
+fn xdg_data_home() -> Option<std::path::PathBuf> {
+    if let Some(path) = std::env::var_os("XDG_DATA_HOME") {
+        if !path.is_empty() {
+            return Some(std::path::PathBuf::from(path));
+        }
+    }
+    dirs::home_dir().map(|home| home.join(".local/share"))
+}
+
+/// `true` when the path is gone. A missing file counts as success.
+fn remove_install_file(path: &std::path::Path) -> bool {
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            println!("removed {}", path.display());
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => {
+            eprintln!("brook: could not remove {}: {error}", path.display());
+            false
+        }
+    }
+}
+
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), String> {
     if app.get_webview_window("main").is_some() {
         return Ok(());
@@ -542,5 +674,33 @@ fn present_main_window(app: &tauri::AppHandle) {
     }
     if let Err(error) = create_main_window(app) {
         eprintln!("[brook] failed to open window: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::launcher_for;
+
+    #[test]
+    fn launcher_is_the_sibling_script_that_points_at_the_appimage() {
+        let dir = std::env::temp_dir().join(format!("brook-uninstall-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let appimage = dir.join("Brook_0.0.6_amd64.AppImage");
+        std::fs::write(&appimage, b"appimage").unwrap();
+        let launcher = dir.join("brook");
+        std::fs::write(
+            &launcher,
+            format!(
+                "#!/bin/bash\nAPPIMAGE=\"{}\"\nexec \"$APPIMAGE\" \"$@\"\n",
+                appimage.display()
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(launcher_for(&appimage), Some(launcher));
+        assert_eq!(launcher_for(&dir.join("missing.AppImage")), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -76,6 +76,12 @@ jobs:
 
             Pin a version with `BROOK_VERSION=${{ github.ref_name }}`.
 
+            **Uninstall**
+
+            `brook --uninstall`
+
+            Remove listening history and cached covers with `brook --uninstall --clear-history`.
+
             **Verify**
 
             Checksums are attached as `SHA256SUMS`.
