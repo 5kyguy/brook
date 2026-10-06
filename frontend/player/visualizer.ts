@@ -1,10 +1,8 @@
 import * as api from "../api";
-import type { PlaybackState } from "../types";
-import type { Track } from "../types";
+import type { PlaybackState, RepeatMode, Track } from "../types";
 import { applyTrackCovers, COVER_PLACEHOLDER } from "../ui/cover-art";
 import { formatDuration, trackArtist, trackLabel } from "../ui/dom";
 import { SVG_HEART, SVG_HEART_FILLED, SVG_PAUSE, SVG_PLAY } from "../ui/icons";
-import type { RepeatMode } from "./queue";
 import { bindDragSlider } from "./slider";
 
 const SMOOTHING = 0.38;
@@ -36,6 +34,7 @@ export interface VisualizerController {
   setProgress(positionSecs: number, durationSecs: number): void;
   syncPlaybackState(status: PlaybackState["status"]): void;
   syncQueueControls(shuffle: boolean, repeat: RepeatMode): void;
+  refreshUpNext(): void;
   clampVisualizerForLyrics(open: boolean): void;
   close(): void;
 }
@@ -418,6 +417,9 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
       updateFsPlayButton();
     },
     syncQueueControls: syncFsQueueControls,
+    refreshUpNext() {
+      if (isOpen()) syncUpNext(handlers.getNextTrack?.() ?? null);
+    },
     clampVisualizerForLyrics(open) {
       lyricsLimitVisualizer = open;
       if (open && visualizerLevel > 1) {

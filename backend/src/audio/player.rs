@@ -296,7 +296,15 @@ fn audio_thread_main(
                 row,
                 track,
             }) => {
-                handle_play(&app, &shared_state, &mut ctx, &mut preload, track_id, row, track);
+                handle_play(
+                    &app,
+                    &shared_state,
+                    &mut ctx,
+                    &mut preload,
+                    track_id,
+                    row,
+                    track,
+                );
             }
             Ok(AudioCommand::LoadPaused {
                 track_id,
@@ -410,8 +418,7 @@ fn handle_play(
     ctx.session = Some(session);
     ctx.track_id = Some(track_id.clone());
     ctx.ended_emitted = false;
-    ctx.replay_gain_scale =
-        replay_gain_scale(row.replay_gain_track_db, row.replay_gain_track_peak);
+    ctx.replay_gain_scale = replay_gain_scale(row.replay_gain_track_db, row.replay_gain_track_peak);
     if let Err(e) = ctx.start_source(source, true) {
         eprintln!("[brook-audio] play failed: {e}");
         return;
@@ -510,8 +517,7 @@ fn handle_load_paused(
     ctx.session = Some(session);
     ctx.track_id = Some(track_id.clone());
     ctx.ended_emitted = false;
-    ctx.replay_gain_scale =
-        replay_gain_scale(row.replay_gain_track_db, row.replay_gain_track_peak);
+    ctx.replay_gain_scale = replay_gain_scale(row.replay_gain_track_db, row.replay_gain_track_peak);
     let duration = ctx.duration_secs();
     handle_seek(app, shared_state, ctx, position_secs);
     let pos = ctx.position_secs();
@@ -528,7 +534,11 @@ fn handle_load_paused(
     let _ = app.emit("playback:track-changed", track);
 }
 
-fn handle_pause(app: &AppHandle, shared_state: &Arc<Mutex<PlaybackState>>, ctx: &mut PlayerContext) {
+fn handle_pause(
+    app: &AppHandle,
+    shared_state: &Arc<Mutex<PlaybackState>>,
+    ctx: &mut PlayerContext,
+) {
     if let Some(sink) = &ctx.sink {
         sink.pause();
         ctx.playing = false;
@@ -550,7 +560,11 @@ fn handle_pause(app: &AppHandle, shared_state: &Arc<Mutex<PlaybackState>>, ctx: 
     }
 }
 
-fn handle_resume(app: &AppHandle, shared_state: &Arc<Mutex<PlaybackState>>, ctx: &mut PlayerContext) {
+fn handle_resume(
+    app: &AppHandle,
+    shared_state: &Arc<Mutex<PlaybackState>>,
+    ctx: &mut PlayerContext,
+) {
     if let Some(sink) = &ctx.sink {
         sink.play();
         ctx.playing = true;
@@ -697,7 +711,10 @@ fn handle_tick(
             );
             emit_state(app, PlaybackStatus::Playing);
             emit_position(app, 0.0, duration);
-            let _ = app.emit("playback:advanced", PlaybackAdvancedPayload { track: new_track });
+            let _ = app.emit(
+                "playback:advanced",
+                PlaybackAdvancedPayload { track: new_track },
+            );
             return;
         }
 
@@ -807,7 +824,10 @@ fn maybe_emit_spectrum_mut(app: &AppHandle, ctx: &mut PlayerContext) {
     let bins = spectrum::compute_spectrum_from_samples(
         &samples,
         ctx.session.as_ref().map(|s| s.channels).unwrap_or(2),
-        ctx.session.as_ref().map(|s| s.sample_rate).unwrap_or(48_000),
+        ctx.session
+            .as_ref()
+            .map(|s| s.sample_rate)
+            .unwrap_or(48_000),
         DEFAULT_BIN_COUNT,
     );
     emit_spectrum(app, bins);

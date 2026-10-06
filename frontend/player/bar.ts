@@ -1,10 +1,9 @@
-import type { PlaybackState, Track } from "../types";
+import type { PlaybackState, RepeatMode, Track } from "../types";
 import { formatDuration, trackLabel, trackSubtitle } from "../ui/dom";
 import { setCoverImage } from "../ui/cover-art";
 import { SVG_HEART, SVG_HEART_FILLED, SVG_PAUSE, SVG_PLAY } from "../ui/icons";
 import { setVolumeButtonMuted } from "../ui/shell";
 import * as api from "../api";
-import type { RepeatMode } from "./queue";
 import { bindDragSlider } from "./slider";
 
 export interface PlayerBar {
@@ -110,7 +109,7 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
       } else if (playbackStatus === "paused") {
         await api.playback.resume();
       } else {
-        await api.playback.playTrack(currentTrack!.id);
+        await api.playback.playCurrent();
       }
     })();
   });

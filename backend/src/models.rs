@@ -289,7 +289,36 @@ pub struct PlaybackEndedPayload {
     pub track_id: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RepeatMode {
+    Off,
+    All,
+    One,
+}
+
+impl RepeatMode {
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "one" | "track" => Self::One,
+            "all" | "playlist" => Self::All,
+            _ => Self::Off,
+        }
+    }
+}
+
+/// In-memory play queue owned by the Rust session. Not persisted.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueSnapshot {
+    pub tracks: Vec<Track>,
+    pub current_id: Option<String>,
+    pub next_id: Option<String>,
+    pub shuffle: bool,
+    pub repeat: RepeatMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackAdvancedPayload {
     pub track: Track,

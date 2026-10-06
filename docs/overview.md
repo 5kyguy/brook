@@ -76,13 +76,15 @@ Audio is decoded and played entirely in Rust:
 - Decode is for playback output only — the file on disk is unchanged
 - No HTML5 media element, no streaming/chunked loading (cover art may use blob URLs in the webview for display only)
 - Seek reopens the file and re-arms the decoder at the new timestamp
-- The next queue track is preloaded into a second ring so track changes are gapless (`set_upcoming_track` + `playback:advanced`)
+- The next queue track is preloaded into a second ring so track changes are gapless. The Rust session calls `set_upcoming_track` after every queue change (`playback:advanced` on a handoff)
 - **Resume** — the playing track and position are saved periodically and on stop, and restored on the next launch (paused at the saved position)
 - **ReplayGain** — `REPLAYGAIN_TRACK_GAIN`/`_PEAK` tags are read at scan and applied as a volume scale at the sink (read-only; files are never modified). The user-facing volume slider is unaffected.
 
 Playback state reaches the UI through Tauri events (position, state, track changes).
 
-On Linux, playback is also published on MPRIS so media keys, `playerctl`, and Waybar widgets can observe and control it. Next/previous route back through the frontend queue; play, pause, seek, volume, and stop call the engine directly.
+On Linux, playback is published on MPRIS so media keys, `playerctl`, and a bar widget can observe and control it. The play queue (order, shuffle, repeat, next, and previous) lives in the Rust session, so those controls work with no window. Play, pause, seek, volume, and stop call the engine directly. The session tells the engine which track to preload.
+
+`brook --headless` starts that session without a window and restores the saved track paused. A later normal launch opens the window on the same process. Closing that window hides it and leaves playback running. `brook --quit` stops the process. A launch without `--headless` still quits when its window closes.
 
 ## Large libraries
 

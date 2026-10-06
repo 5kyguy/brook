@@ -5,10 +5,9 @@
 //!
 //! The player thread owns a current-thread tokio runtime with a `LocalSet`
 //! (`mpris_server::Player` is not `Send`). It receives [`MprisUpdate`]s from
-//! the app and pushes them to D-Bus. Incoming D-Bus commands either call the
-//! audio engine directly (play, pause, seek, volume, stop) or emit Tauri
-//! events (`mpris:next`, `mpris:previous`, `mpris:shuffle`, `mpris:loop`) that
-//! the frontend routes through its playback queue.
+//! the app and pushes them to D-Bus. Incoming D-Bus commands call the audio
+//! engine directly, or the playback session when the command needs the queue
+//! (next, previous, shuffle, repeat, and play-from-stopped).
 
 #![cfg(target_os = "linux")]
 
@@ -16,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use mpris_server::{Metadata, PlaybackStatus, Player, Time};
-use tauri::{AppHandle, Emitter, Listener, Manager};
+use tauri::{AppHandle, Listener, Manager};
 use tokio::sync::mpsc;
 
 use crate::models::{PlaybackStatus as BrookStatus, Track};
@@ -118,7 +117,7 @@ fn register_callbacks(player: &Player, app: AppHandle) {
     player.connect_play({
         let app = app.clone();
         move |_| {
-            let _ = app.state::<AppState>().audio.resume();
+            transport_play(&app, false);
         }
     });
 
@@ -132,30 +131,21 @@ fn register_callbacks(player: &Player, app: AppHandle) {
     player.connect_play_pause({
         let app = app.clone();
         move |_| {
-            let state = app.state::<AppState>();
-            let status = state.audio.state().status;
-            match status {
-                BrookStatus::Playing => {
-                    let _ = state.audio.pause();
-                }
-                _ => {
-                    let _ = state.audio.resume();
-                }
-            }
+            transport_play(&app, true);
         }
     });
 
     player.connect_next({
         let app = app.clone();
         move |_| {
-            let _ = app.emit("mpris:next", ());
+            let _ = crate::session::go_next(&app);
         }
     });
 
     player.connect_previous({
         let app = app.clone();
         move |_| {
-            let _ = app.emit("mpris:previous", ());
+            let _ = crate::session::go_previous(&app);
         }
     });
 
@@ -194,17 +184,36 @@ fn register_callbacks(player: &Player, app: AppHandle) {
 
     player.connect_set_shuffle({
         let app = app.clone();
-        move |_, s| {
-            let _ = app.emit("mpris:shuffle", s);
+        move |_, shuffle| {
+            let _ = crate::session::set_shuffle(&app, shuffle);
         }
     });
 
     player.connect_set_loop_status({
         let app = app.clone();
-        move |_, l| {
-            let _ = app.emit("mpris:loop", loop_status_to_str(l));
+        move |_, status| {
+            let _ = crate::session::set_repeat(
+                &app,
+                crate::models::RepeatMode::parse(loop_status_to_str(status)),
+            );
         }
     });
+}
+
+fn transport_play(app: &AppHandle, toggle_if_playing: bool) {
+    let status = app.state::<AppState>().audio.state().status;
+    match status {
+        BrookStatus::Playing if toggle_if_playing => {
+            let _ = app.state::<AppState>().audio.pause();
+        }
+        BrookStatus::Playing => {}
+        BrookStatus::Paused => {
+            let _ = app.state::<AppState>().audio.resume();
+        }
+        BrookStatus::Stopped => {
+            let _ = crate::session::play_current(app);
+        }
+    }
 }
 
 async fn apply_update(player: &Player, update: MprisUpdate) {
@@ -256,11 +265,14 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
     let tx_meta = tx.clone();
     let covers = covers_dir.clone();
     let on_track = move |event: &tauri::Event| {
-        let Some(track) = serde_json::from_str::<Track>(event.payload()).ok() else {
+        let Some(track) = track_from_playback_event(event.payload()) else {
             return;
         };
         let title = track.title.clone().unwrap_or_else(|| "Unknown".to_string());
-        let artist = track.artist.clone().unwrap_or_else(|| "Unknown artist".to_string());
+        let artist = track
+            .artist
+            .clone()
+            .unwrap_or_else(|| "Unknown artist".to_string());
         let album = track.album.clone().unwrap_or_default();
         let duration_us = (track.duration_secs.unwrap_or(0.0) * 1_000_000.0) as i64;
         let art_url = cover_url_for(&covers, &track.id);
@@ -286,7 +298,8 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
 
     let tx_state = tx.clone();
     let _ = app.listen("playback:state", move |event| {
-        let Ok(payload) = serde_json::from_str::<crate::models::PlaybackStatePayload>(event.payload())
+        let Ok(payload) =
+            serde_json::from_str::<crate::models::PlaybackStatePayload>(event.payload())
         else {
             return;
         };
@@ -323,6 +336,15 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
         let vol = state.audio.state().volume as f64;
         let _ = tx_pos.send(MprisUpdate::Volume(vol));
     });
+}
+
+fn track_from_playback_event(payload: &str) -> Option<Track> {
+    if let Ok(track) = serde_json::from_str::<Track>(payload) {
+        return Some(track);
+    }
+    serde_json::from_str::<crate::models::PlaybackAdvancedPayload>(payload)
+        .ok()
+        .map(|payload| payload.track)
 }
 
 fn map_status(status: BrookStatus) -> PlaybackStatus {
@@ -363,4 +385,3 @@ fn path_to_file_url(path: &std::path::Path) -> Result<String, ()> {
     }
     Ok(s)
 }
-

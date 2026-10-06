@@ -1,8 +1,9 @@
 pub mod dev;
+pub mod favorites;
 pub mod library;
 pub mod lyrics;
-pub mod favorites;
-pub mod playlists;
 pub mod playback;
+pub mod playlists;
+pub mod queue;
 pub mod stats;
 pub mod theme;

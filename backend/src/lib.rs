@@ -74,9 +74,8 @@ pub mod scanner {
                 .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .unwrap_or_else(|_| absolute_path.to_string_lossy().into_owned());
 
-            let metadata = std::fs::metadata(path).map_err(|e| {
-                format!("Failed to read metadata for {}: {e}", path.display())
-            })?;
+            let metadata = std::fs::metadata(path)
+                .map_err(|e| format!("Failed to read metadata for {}: {e}", path.display()))?;
 
             let lrc = resolve_lrc(path, &stem);
             let has_lrc = lrc.is_some();
@@ -187,9 +186,7 @@ pub mod metadata {
         Ok(meta)
     }
 
-    fn extract_embedded_lyrics(
-        tag: &lofty::tag::Tag,
-    ) -> Option<String> {
+    fn extract_embedded_lyrics(tag: &lofty::tag::Tag) -> Option<String> {
         for item in tag.items() {
             if let lofty::tag::ItemValue::Text(text) = item.value() {
                 let key = format!("{:?}", item.key()).to_lowercase();
@@ -289,13 +286,15 @@ pub mod lyrics {
     }
 }
 
-pub mod cover_art;
-pub mod db;
 pub mod audio;
 pub mod commands;
+pub mod cover_art;
+pub mod db;
 pub mod dev_log;
 pub mod library_scan;
 pub mod playback_session;
+pub mod queue;
+pub mod session;
 pub mod state;
 pub mod theme;
 
@@ -327,26 +326,51 @@ fn configure_linux_webview() {}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     configure_linux_webview();
+    let headless = arg_flag("--headless");
+    let quit = arg_flag("--quit");
+
     tauri::Builder::default()
         // Single-instance guard: a second launch hands its argv to the
-        // running window and exits. Registered first so it can short-circuit
-        // before setup runs. A later CLI can sit on the same channel.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Bring the running window forward.
-            if let Some(window) = app.webview_windows().values().next() {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+        // running process and exits. `--headless` is a no-op when a session
+        // is already up. A normal launch opens the window. `--quit` exits.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // The D-Bus callback is not the GTK thread. Window creation has to
+            // hop to the main thread.
+            let app = app.clone();
+            let argv = argv.clone();
+            let _ = app.clone().run_on_main_thread(move || {
+                if argv.iter().any(|arg| arg == "--quit") {
+                    app.exit(0);
+                    return;
+                }
+                if argv.iter().any(|arg| arg == "--headless") {
+                    return;
+                }
+                present_main_window(&app);
+            });
         }))
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let keep_alive = window
+                    .app_handle()
+                    .try_state::<AppState>()
+                    .is_some_and(|state| state.started_headless);
+                if keep_alive {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .setup(move |app| {
+            if quit {
+                app.handle().exit(0);
+                return Ok(());
+            }
+
             let setup_timer = dev_log::Timer::new("setup", "tauri setup");
 
-            let app_data = app
-                .path()
-                .app_data_dir()
-                .map_err(|e| e.to_string())?;
+            let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&app_data).map_err(|e| e.to_string())?;
             setup_timer.log_step("app_data_dir");
 
@@ -368,9 +392,21 @@ pub fn run() {
             #[cfg(not(target_os = "linux"))]
             let mpris_handle: Option<()> = None;
 
-            app.manage(AppState::new(db, app.handle().clone(), covers_dir, mpris_handle));
+            app.manage(AppState::new(
+                db,
+                app.handle().clone(),
+                covers_dir,
+                mpris_handle,
+                headless,
+            ));
+            session::install(app.handle());
+            session::restore_resume(app.handle());
             commands::theme::install(app.handle())?;
             setup_timer.log_step("AppState ready");
+
+            if !headless {
+                create_main_window(app.handle())?;
+            }
 
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -394,7 +430,11 @@ pub fn run() {
                 .await;
             });
 
-            setup_timer.finish("window ready (charts deferred)");
+            setup_timer.finish(if headless {
+                "headless session ready (charts deferred)"
+            } else {
+                "window ready (charts deferred)"
+            });
             dev_log::append(
                 "setup",
                 &format!("dev logs → {}", dev_log::log_file_path().display()),
@@ -441,6 +481,19 @@ pub fn run() {
             commands::playback::stop,
             #[cfg(target_os = "linux")]
             commands::playback::set_mpris_controls,
+            commands::queue::get_queue,
+            commands::queue::play_queue,
+            commands::queue::queue_insert_next,
+            commands::queue::queue_append,
+            commands::queue::queue_remove,
+            commands::queue::queue_reorder,
+            commands::queue::queue_jump,
+            commands::queue::queue_clear,
+            commands::queue::queue_toggle_shuffle,
+            commands::queue::queue_cycle_repeat,
+            commands::queue::queue_next,
+            commands::queue::queue_previous,
+            commands::queue::play_current,
             commands::stats::get_stats,
             commands::stats::get_stats_years,
             commands::stats::get_yearly_wrap,
@@ -448,6 +501,46 @@ pub fn run() {
             commands::dev::dev_log_append,
             commands::theme::get_shared_theme,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+                let keep_alive = code.is_none()
+                    && app
+                        .try_state::<AppState>()
+                        .is_some_and(|state| state.started_headless);
+                if keep_alive {
+                    api.prevent_exit();
+                }
+            }
+        });
+}
+
+fn arg_flag(flag: &str) -> bool {
+    std::env::args().any(|arg| arg == flag)
+}
+
+fn create_main_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("main").is_some() {
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+        .title("Brook")
+        .inner_size(1280.0, 800.0)
+        .resizable(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn present_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+    if let Err(error) = create_main_window(app) {
+        eprintln!("[brook] failed to open window: {error}");
+    }
 }

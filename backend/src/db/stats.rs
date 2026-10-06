@@ -180,13 +180,15 @@ impl Database {
             (Some(start), Some(end)) => (
                 "SELECT COUNT(*), COALESCE(SUM(duration_listened), 0),
                         COUNT(DISTINCT track_id), COALESCE(SUM(completed), 0)
-                 FROM play_history WHERE played_at >= ?1 AND played_at < ?2".into(),
+                 FROM play_history WHERE played_at >= ?1 AND played_at < ?2"
+                    .into(),
                 vec![start.into(), end.into()],
             ),
             _ => (
                 "SELECT COUNT(*), COALESCE(SUM(duration_listened), 0),
                         COUNT(DISTINCT track_id), COALESCE(SUM(completed), 0)
-                 FROM play_history".into(),
+                 FROM play_history"
+                    .into(),
                 vec![],
             ),
         };
@@ -229,14 +231,24 @@ impl Database {
                 file_size: row.get::<_, i64>(7).map_err(|e| e.to_string())? as u64,
                 modified_ms: row.get::<_, i64>(8).map_err(|e| e.to_string())? as i128,
                 title: row.get::<_, Option<String>>(9).map_err(|e| e.to_string())?,
-                artist: row.get::<_, Option<String>>(10).map_err(|e| e.to_string())?,
-                album: row.get::<_, Option<String>>(11).map_err(|e| e.to_string())?,
-                genre: row.get::<_, Option<String>>(12).map_err(|e| e.to_string())?,
+                artist: row
+                    .get::<_, Option<String>>(10)
+                    .map_err(|e| e.to_string())?,
+                album: row
+                    .get::<_, Option<String>>(11)
+                    .map_err(|e| e.to_string())?,
+                genre: row
+                    .get::<_, Option<String>>(12)
+                    .map_err(|e| e.to_string())?,
                 year: row.get::<_, Option<i32>>(13).map_err(|e| e.to_string())?,
                 duration_secs: row.get::<_, Option<f64>>(14).map_err(|e| e.to_string())?,
                 has_lrc: row.get::<_, i32>(15).map_err(|e| e.to_string())? != 0,
-                lrc_path: row.get::<_, Option<String>>(16).map_err(|e| e.to_string())?,
-                embedded_lyrics: row.get::<_, Option<String>>(17).map_err(|e| e.to_string())?,
+                lrc_path: row
+                    .get::<_, Option<String>>(16)
+                    .map_err(|e| e.to_string())?,
+                embedded_lyrics: row
+                    .get::<_, Option<String>>(17)
+                    .map_err(|e| e.to_string())?,
                 replay_gain_track_db: None,
                 replay_gain_track_peak: None,
             };
@@ -477,7 +489,10 @@ fn year_start_ms(year: i32) -> i64 {
         .timestamp_millis()
 }
 
-fn ranked_tracks_sql(start_ms: Option<i64>, end_ms: Option<i64>) -> (String, Option<i64>, Option<i64>) {
+fn ranked_tracks_sql(
+    start_ms: Option<i64>,
+    end_ms: Option<i64>,
+) -> (String, Option<i64>, Option<i64>) {
     if start_ms.is_some() {
         (
             "SELECT ls.track_id, ls.play_count, ls.total_secs,

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { PlaybackState, ResumeState } from "../types";
+import type { PlaybackState, QueueSnapshot, ResumeState } from "../types";
 import { requireTauri } from "./client";
 
 export async function getPlaybackState(): Promise<PlaybackState> {
@@ -36,6 +36,72 @@ export async function setVolume(volume: number): Promise<void> {
 export async function setVisualizerActive(active: boolean): Promise<void> {
   requireTauri();
   return invoke<void>("set_visualizer_active", { active });
+}
+
+/** Start the queued track when the engine is stopped. */
+export async function playCurrent(): Promise<void> {
+  requireTauri();
+  return invoke<void>("play_current");
+}
+
+export async function getQueue(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("get_queue");
+}
+
+export async function playQueue(ids: string[], currentId: string): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("play_queue", { ids, currentId });
+}
+
+export async function queueInsertNext(id: string): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_insert_next", { id });
+}
+
+export async function queueAppend(id: string): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_append", { id });
+}
+
+export async function queueRemove(id: string): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_remove", { id });
+}
+
+export async function queueReorder(fromIndex: number, toIndex: number): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_reorder", { fromIndex, toIndex });
+}
+
+export async function queueJump(id: string): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_jump", { id });
+}
+
+export async function queueClear(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_clear");
+}
+
+export async function queueToggleShuffle(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_toggle_shuffle");
+}
+
+export async function queueCycleRepeat(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_cycle_repeat");
+}
+
+export async function queueNext(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_next");
+}
+
+export async function queuePrevious(): Promise<QueueSnapshot> {
+  requireTauri();
+  return invoke<QueueSnapshot>("queue_previous");
 }
 
 /** Tell the engine which track is next in the queue so it can preload it.

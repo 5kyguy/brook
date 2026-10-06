@@ -1,9 +1,7 @@
-use tauri::State;
-
 use crate::state::AppState;
 
 /// Finalize the current listen session using live playback position (seconds).
-pub fn finalize_current_listen(state: &State<'_, AppState>) {
+pub fn finalize_current_listen(state: &AppState) {
     let playback = state.audio.state();
     let Some(track_id) = playback.track_id.clone() else {
         return;

@@ -8,6 +8,7 @@ import type {
   PlaybackSpectrumPayload,
   PlaybackStatePayload,
   PlaylistsChangedPayload,
+  QueueSnapshot,
   ScanCompletePayload,
   ScanProgressPayload,
   Track,
@@ -79,8 +80,8 @@ export async function onPlaybackEnded(
   });
 }
 
-/** Fired on a gapless advance: the engine swapped to a preloaded track without
- * a second `play_track`. The frontend advances its queue to match. */
+/** Fired on a gapless advance: the engine swapped to a preloaded track. The
+ * Rust session moves the queue; the UI only refreshes the now-playing track. */
 export async function onPlaybackAdvanced(
   handler: (payload: PlaybackAdvancedPayload) => void,
 ): Promise<UnlistenFn> {
@@ -117,34 +118,20 @@ export async function onPlaylistsChanged(
   });
 }
 
-/** MPRIS Next: a desktop media key / playerctl asked for the next track. */
-export async function onMprisNext(handler: () => void): Promise<UnlistenFn> {
+/** The Rust session changed the queue, shuffle, or repeat. */
+export async function onQueueChanged(
+  handler: (snapshot: QueueSnapshot) => void,
+): Promise<UnlistenFn> {
   if (!isTauri()) return () => {};
-  return listen<null>("mpris:next", () => {
-    handler();
-  });
-}
-
-/** MPRIS Previous: a desktop media key / playerctl asked for the previous track. */
-export async function onMprisPrevious(handler: () => void): Promise<UnlistenFn> {
-  if (!isTauri()) return () => {};
-  return listen<null>("mpris:previous", () => {
-    handler();
-  });
-}
-
-/** MPRIS Shuffle: the desktop asked to toggle shuffle. */
-export async function onMprisShuffle(handler: (shuffle: boolean) => void): Promise<UnlistenFn> {
-  if (!isTauri()) return () => {};
-  return listen<boolean>("mpris:shuffle", (event) => {
+  return listen<QueueSnapshot>("queue:changed", (event) => {
     handler(event.payload);
   });
 }
 
-/** MPRIS Loop: the desktop asked to change repeat mode ("off"|"all"|"one"). */
-export async function onMprisLoop(handler: (repeat: string) => void): Promise<UnlistenFn> {
+/** Natural end and the queue has nothing else to play. */
+export async function onPlaybackSessionIdle(handler: () => void): Promise<UnlistenFn> {
   if (!isTauri()) return () => {};
-  return listen<string>("mpris:loop", (event) => {
-    handler(event.payload);
+  return listen<null>("playback:session-idle", () => {
+    handler();
   });
 }

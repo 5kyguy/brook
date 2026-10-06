@@ -22,7 +22,10 @@ pub fn get_yearly_wrap(state: State<'_, AppState>, year: i32) -> Result<YearlyWr
 }
 
 #[tauri::command]
-pub fn get_recent_tracks(state: State<'_, AppState>, limit: Option<usize>) -> Result<Vec<Track>, String> {
+pub fn get_recent_tracks(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<Track>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_recent_tracks(limit.unwrap_or(50))
 }

@@ -1,4 +1,3 @@
-import type { PlaybackQueue } from "./queue";
 import type { Track } from "../types";
 import { formatDuration, trackArtist, trackLabel } from "../ui/dom";
 
@@ -9,11 +8,12 @@ export interface QueuePanelController {
 }
 
 export interface QueuePanelDeps {
-  queue: PlaybackQueue;
+  getTracks: () => Track[];
   getPlayingTrackId: () => string | null;
-  onJumpTo: (track: Track) => void | Promise<void>;
+  onJump: (trackId: string) => void;
   onRemove: (trackId: string) => void;
   onClear: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
 }
 
 function escapeHtml(text: string): string {
@@ -98,14 +98,13 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
         const fromIndex = draggedIndex;
         const toIndex = Number(row.dataset.queueIndex);
         if (fromIndex === null || Number.isNaN(toIndex) || fromIndex === toIndex) return;
-        deps.queue.reorder(fromIndex, toIndex);
-        refresh();
+        deps.onReorder(fromIndex, toIndex);
       });
     });
   };
 
   const render = () => {
-    const tracks = deps.queue.getTracks();
+    const tracks = deps.getTracks();
     const playingId = deps.getPlayingTrackId();
 
     if (tracks.length === 0) {
@@ -148,8 +147,7 @@ export function initQueuePanel(deps: QueuePanelDeps): QueuePanelController {
         if (dragArmed) return;
         const trackId = row.dataset.trackId;
         if (!trackId) return;
-        const track = deps.queue.jumpTo(trackId);
-        if (track) void Promise.resolve(deps.onJumpTo(track));
+        deps.onJump(trackId);
         close();
       });
     });

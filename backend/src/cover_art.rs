@@ -110,10 +110,7 @@ fn resize_to_thumb(bytes: &[u8]) -> Result<Vec<u8>, String> {
     Ok(out.into_inner())
 }
 
-fn read_cached_cover(
-    covers_dir: &Path,
-    track_id: &str,
-) -> Result<Option<AlbumArtPayload>, String> {
+fn read_cached_cover(covers_dir: &Path, track_id: &str) -> Result<Option<AlbumArtPayload>, String> {
     for ext in ["jpg", "jpeg", "png", "webp"] {
         let path = cache_path_for(covers_dir, track_id, ext);
         if path.is_file() {

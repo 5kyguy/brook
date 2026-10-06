@@ -71,6 +71,16 @@ export interface PlaybackSpectrumPayload {
   bins: number[];
 }
 
+export type RepeatMode = "off" | "all" | "one";
+
+export interface QueueSnapshot {
+  tracks: Track[];
+  currentId: string | null;
+  nextId: string | null;
+  shuffle: boolean;
+  repeat: RepeatMode;
+}
+
 export interface ScanProgressPayload {
   current: number;
   total: number;

@@ -41,12 +41,7 @@ pub fn append(source: &str, message: &str) {
         return;
     }
 
-    let line = format!(
-        "{} [{}] {}\n",
-        timestamp_rfc3339_ms(),
-        source,
-        message
-    );
+    let line = format!("{} [{}] {}\n", timestamp_rfc3339_ms(), source, message);
 
     if let Ok(mut file) = OpenOptions::new()
         .create(true)

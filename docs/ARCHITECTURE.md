@@ -309,15 +309,28 @@ CREATE TABLE app_settings (
 | `get_album_art` | `id: string` | `{ data, mimeType }` or null | Full cover bytes (player / now-playing / detail header) |
 | `get_album_art_thumb` | `id: string` | `{ data, mimeType }` or null | Small (96px) JPEG list thumbnail, cached beside the full cover |
 | `get_album_art_batch` | `ids: string[]` | `Array<{ id, art }>` | List thumbnails for many ids in one IPC round-trip |
-| `play_track` | `id: string` | `()` | Opens the file and starts streaming playback |
-| `set_upcoming_track` | `id: string \| null` | `()` | Tell the engine the next queue track so it can preload it for a gapless handoff; `null` drops the preload |
+| `play_track` | `id: string` | `()` | Opens the file and starts streaming playback. Does not replace the queue |
+| `play_queue` | `ids: string[], currentId: string` | `QueueSnapshot` | Replace the queue and start `currentId` |
+| `get_queue` | — | `QueueSnapshot` | Tracks, current id, next id, shuffle, repeat |
+| `queue_insert_next` | `id: string` | `QueueSnapshot` | Play this track after the current one |
+| `queue_append` | `id: string` | `QueueSnapshot` | Add to the end unless it is already queued |
+| `queue_remove` | `id: string` | `QueueSnapshot` | Removing the current track starts the one that slides into place |
+| `queue_reorder` | `fromIndex: number, toIndex: number` | `QueueSnapshot` | |
+| `queue_jump` | `id: string` | `QueueSnapshot` | Play that queued track |
+| `queue_clear` | — | `QueueSnapshot` | Keep the current track |
+| `queue_toggle_shuffle` | — | `QueueSnapshot` | |
+| `queue_cycle_repeat` | — | `QueueSnapshot` | `off` → `all` → `one` |
+| `queue_next` | — | `QueueSnapshot` | Next track. No-op at the end unless repeat wraps |
+| `queue_previous` | — | `QueueSnapshot` | Seek to 0 if position > 3s, otherwise the previous track |
+| `play_current` | — | `()` | Start the queued track when the engine is stopped |
+| `set_upcoming_track` | `id: string \| null` | `()` | Low-level preload. The session sets this from the queue after every change |
 | `pause` | — | `()` | |
 | `resume` | — | `()` | |
 | `seek` | `position_secs: f64` | `()` | Seek within current track |
 | `set_volume` | `volume: f32` | `()` | 0.0–1.0 |
 | `set_visualizer_active` | `active: bool` | `()` | Enables ~30 Hz `playback:spectrum` events |
 | `stop` | — | `()` | Stop playback without emitting `playback:ended` (MPRIS Stop) |
-| `set_mpris_controls` | `shuffle: bool, repeat: string` | `()` | Push shuffle/loop state to the MPRIS player (Linux only) |
+| `set_mpris_controls` | `shuffle: bool, repeat: string` | `()` | Set shuffle and repeat on the session, which publishes them to MPRIS (Linux only) |
 | `get_playback_state` | — | `PlaybackState` | Current track, position, status |
 | `toggle_favorite` | `track_id: string` | `bool` | New liked state |
 | `get_favorites` | — | `Track[]` | |
@@ -343,12 +356,10 @@ CREATE TABLE app_settings (
 | `playback:position` | `{ position_secs, duration_secs }` | ~4 Hz while playing (250 ms tick) |
 | `playback:spectrum` | `{ bins: number[] }` | ~30 Hz while playing and visualizer active |
 | `playback:track-changed` | `Track` | New track loaded via `play_track` |
-| `playback:advanced` | `{ track: Track }` | Gapless handoff to a preloaded next track (no second `play_track`) |
-| `playback:ended` | `{ track_id }` | Natural end with no preloaded next track |
-| `mpris:next` | — | Desktop media key / playerctl asked for next (frontend runs `goNext`) |
-| `mpris:previous` | — | Desktop media key / playerctl asked for previous (frontend runs `goPrev`) |
-| `mpris:shuffle` | `bool` | Desktop asked to set shuffle (frontend toggles to match) |
-| `mpris:loop` | `string` | Desktop asked to set repeat mode: `off`/`all`/`one` (frontend cycles to match) |
+| `playback:advanced` | `{ track: Track }` | Gapless handoff to a preloaded next track. The session moves the queue; the UI refreshes the now-playing track |
+| `playback:ended` | `{ track_id }` | Natural end. The session starts the next queued track when there is one |
+| `playback:session-idle` | — | Natural end and the queue has nothing else to play |
+| `queue:changed` | `QueueSnapshot` | Queue, shuffle, or repeat changed, including MPRIS and gapless advance |
 | `db:favorites-changed` | `{ track_id, liked: bool }` | Like toggled |
 | `db:playlists-changed` | `{ playlist_id? }` | Playlist CRUD |
 | `theme:changed` | `SharedTheme` | Local theme file replaced, removed, or rejected |
@@ -368,6 +379,14 @@ interface Track {
   durationSecs: number;
   hasLrc: boolean;
   isFavorite: boolean;
+}
+
+interface QueueSnapshot {
+  tracks: Track[];
+  currentId: string | null;
+  nextId: string | null;
+  shuffle: boolean;
+  repeat: "off" | "all" | "one";
 }
 
 interface PlaybackState {
@@ -437,7 +456,7 @@ interface SharedTheme {
 | Graphic EQ | Off | offline-defaults |
 | Binaural DSP | Off | offline-defaults |
 | Mono audio | Off | offline-defaults |
-| Gapless | On (next-track preload) | streaming decoder + `set_upcoming_track` |
+| Gapless | On (next-track preload) | Rust queue calls `set_upcoming_track` after each change |
 | ReplayGain | Track mode, applied at playback from tags (read-only) | `REPLAYGAIN_TRACK_GAIN`/`_PEAK` read at scan, scaled at the sink |
 | Playback speed | 1×, preserve pitch | offline-defaults |
 | Exponential volume | Off | offline-defaults |
@@ -485,7 +504,7 @@ brook/
 │   ├── main.ts
 │   ├── api/
 │   ├── ui/              # library, search, entity-page, router, playlists, stats
-│   ├── player/          # bar, queue, queue-panel, lyrics, visualizer, shortcuts
+│   ├── player/          # bar, queue-panel, lyrics, visualizer, shortcuts
 │   ├── settings/
 │   └── public/          # styles.css, images, assets
 ├── backend/             # Tauri 2 + Rust
@@ -498,6 +517,8 @@ brook/
 │       ├── lyrics.rs
 │       ├── db/
 │       ├── audio/
+│       ├── queue.rs
+│       ├── session.rs
 │       └── commands/
 ├── README.md
 └── package.json
@@ -520,7 +541,9 @@ Tauri is configured to use `frontend/` as the web root and `backend/` as the Rus
 | `/userplaylist/:id` | Playlist detail |
 | `/settings` | Theme, visuals, music folder |
 
-In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in `frontend/player/queue.ts`; the queue modal is UI-only and does not persist to SQLite.
+In-memory **play queue** (next/prev/shuffle/repeat, drag reorder) lives in the Rust session (`backend/src/queue.rs`). It is not persisted to SQLite. The queue panel is a view of `get_queue` / `queue:changed`.
+
+`brook --headless` starts the session with no window. A second launch without that flag opens the window on the running process. Closing the window hides it when the process was started headless. `brook --quit` exits the process.
 
 ## Implementation status (v1)
 

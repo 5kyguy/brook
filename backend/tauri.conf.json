@@ -10,14 +10,7 @@
         "frontendDist": "../frontend/dist"
     },
     "app": {
-        "windows": [
-            {
-                "title": "Brook",
-                "width": 1280,
-                "height": 800,
-                "resizable": true
-            }
-        ],
+        "windows": [],
         "security": {
             "capabilities": ["default"],
             "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:5173 http://localhost:5173; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"

@@ -46,7 +46,10 @@ pub fn compute_spectrum_from_samples(
     let fft = planner.plan_fft_forward(FFT_SIZE);
     let mut buffer: Vec<Complex<f32>> = window
         .into_iter()
-        .map(|sample| Complex { re: sample, im: 0.0 })
+        .map(|sample| Complex {
+            re: sample,
+            im: 0.0,
+        })
         .collect();
     fft.process(&mut buffer);
 

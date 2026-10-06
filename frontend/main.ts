@@ -4,7 +4,6 @@ import { initPlayerBar } from "./player/bar";
 import { getLastTrackId, saveLastTrackId } from "./player/last-track";
 import { initLyricsPanel } from "./player/lyrics";
 import { initQueuePanel } from "./player/queue-panel";
-import { createPlaybackQueue } from "./player/queue";
 import { closeOpenModals, initKeyboardShortcuts } from "./player/shortcuts";
 import { initVisualizer } from "./player/visualizer";
 import { initRecentPage } from "./ui/recent";
@@ -27,7 +26,7 @@ import {
 import { bindSidebarNavigation, Router } from "./ui/router";
 import { initGlobalSearch, initSearchPage } from "./ui/search";
 import { initAppShell } from "./ui/shell";
-import type { Track } from "./types";
+import type { QueueSnapshot, Track } from "./types";
 
 async function boot(): Promise<void> {
   logStartupHint();
@@ -38,7 +37,15 @@ async function boot(): Promise<void> {
   ensureCreatePlaylistCardArt();
   bootTimer.step("theme + shell");
 
-  const queue = createPlaybackQueue();
+  const queueSnap: { current: QueueSnapshot } = {
+    current: {
+      tracks: [],
+      currentId: null,
+      nextId: null,
+      shuffle: false,
+      repeat: "off",
+    },
+  };
   let visualizer: ReturnType<typeof initVisualizer> | null = null;
   const lyricsPanel = initLyricsPanel({
     onFullscreenLyricsChange: (open) => visualizer?.clampVisualizerForLyrics(open),
@@ -61,13 +68,31 @@ async function boot(): Promise<void> {
   };
 
   const syncTransportControls = () => {
-    const shuffle = queue.isShuffled();
-    const repeat = queue.getRepeatMode();
+    const { shuffle, repeat } = queueSnap.current;
     playerBar?.syncQueueControls(shuffle, repeat);
     visualizer?.syncQueueControls(shuffle, repeat);
   };
 
-  async function setNowPlayingTrack(track: Track | null): Promise<void> {
+  function currentTrack(): Track | null {
+    const id = queueSnap.current.currentId;
+    if (!id) return null;
+    return queueSnap.current.tracks.find((track) => track.id === id) ?? null;
+  }
+
+  function nextTrack(): Track | null {
+    const id = queueSnap.current.nextId;
+    if (!id) return null;
+    return queueSnap.current.tracks.find((track) => track.id === id) ?? null;
+  }
+
+  function applySnapshot(snap: QueueSnapshot): void {
+    queueSnap.current = snap;
+    syncTransportControls();
+    refreshQueuePanel();
+    visualizer?.refreshUpNext();
+  }
+
+  async function showTrack(track: Track | null): Promise<void> {
     playerBar.setTrack(track);
     visualizer?.setTrack(track);
     await lyricsPanel.setTrack(track);
@@ -78,39 +103,29 @@ async function boot(): Promise<void> {
     }
   }
 
-  async function playQueuedTrack(track: Track): Promise<void> {
-    await api.playback.playTrack(track.id);
+  async function followQueue(beforeId: string | null, snap: QueueSnapshot): Promise<void> {
+    applySnapshot(snap);
+    if (!snap.currentId || snap.currentId === beforeId) return;
+    const track = currentTrack();
+    if (!track) return;
     saveLastTrackId(track.id);
     libraryPage.setPlayingTrackId(track.id);
-    await setNowPlayingTrack(track);
+    await showTrack(track);
     void libraryPage.refresh();
-    syncUpcoming();
   }
 
-  /** Tell the engine which track is next so it can preload it for a gapless
-   * handoff. Called after every queue mutation. */
-  function syncUpcoming(): void {
-    const next = queue.getNext();
-    void api.playback.setUpcomingTrack(next ? next.id : null);
+  async function playTrack(track: Track, queueTracks?: Track[]): Promise<void> {
+    const ids = (queueTracks?.length ? queueTracks : [track]).map((item) => item.id);
+    const snap = await api.playback.playQueue(ids, track.id);
+    await followQueue(null, snap);
   }
 
-  /** Push shuffle/loop state to the MPRIS player so playerctl shows it. */
-  function syncMprisControls(): void {
-    void api.playback.setMprisControls(queue.isShuffled(), queue.getRepeatMode());
-  }
-
-  async function playTrack(
-    track: Track,
-    queueTracks?: Track[],
-  ): Promise<void> {
-    if (queueTracks?.length) {
-      queue.setQueue(queueTracks, track.id);
-    } else {
-      queue.setQueue([track], track.id);
-    }
-    syncTransportControls();
-    await playQueuedTrack(track);
-    refreshQueuePanel();
+  async function togglePlay(): Promise<void> {
+    if (!currentTrack()) return;
+    const state = await api.playback.getPlaybackState();
+    if (state.status === "playing") await api.playback.pause();
+    else if (state.status === "paused") await api.playback.resume();
+    else await api.playback.playCurrent();
   }
 
   async function toggleFavorite(track: Track): Promise<void> {
@@ -120,7 +135,7 @@ async function boot(): Promise<void> {
   }
 
   async function toggleNowPlayingFavorite(): Promise<void> {
-    const track = queue.getCurrent();
+    const track = currentTrack();
     if (!track) return;
     await api.library.toggleFavorite(track.id);
     const updated = await api.library.getTrack(track.id);
@@ -131,45 +146,39 @@ async function boot(): Promise<void> {
   }
 
   async function goNext(): Promise<void> {
-    const next = queue.advance();
-    if (!next) return;
-    await playQueuedTrack(next);
-    refreshQueuePanel();
+    const before = queueSnap.current.currentId;
+    const snap = await api.playback.queueNext();
+    await followQueue(before, snap);
   }
 
   async function goPrev(): Promise<void> {
-    const state = await api.playback.getPlaybackState();
-    if (state.positionSecs > 3) {
-      await api.playback.seek(0);
-      return;
-    }
-    const prev = queue.retreat();
-    if (!prev) {
-      await api.playback.seek(0);
-      return;
-    }
-    await playQueuedTrack(prev);
-    refreshQueuePanel();
+    const before = queueSnap.current.currentId;
+    const snap = await api.playback.queuePrevious();
+    await followQueue(before, snap);
   }
 
   queuePanel = initQueuePanel({
-    queue,
+    getTracks: () => queueSnap.current.tracks,
     getPlayingTrackId: () => libraryPage?.getPlayingTrackId() ?? null,
-    onJumpTo: (track) => playQueuedTrack(track),
+    onJump: (trackId) => {
+      void (async () => {
+        const before = queueSnap.current.currentId;
+        const snap = await api.playback.queueJump(trackId);
+        await followQueue(before, snap);
+      })();
+    },
     onRemove: (trackId) => {
-      const wasPlaying = libraryPage?.getPlayingTrackId() === trackId;
-      queue.remove(trackId);
-      if (wasPlaying) {
-        const next = queue.getCurrent();
-        if (next) void playQueuedTrack(next);
-      }
-      refreshQueuePanel();
-      syncUpcoming();
+      void (async () => {
+        const before = queueSnap.current.currentId;
+        const snap = await api.playback.queueRemove(trackId);
+        await followQueue(before, snap);
+      })();
     },
     onClear: () => {
-      queue.clear();
-      refreshQueuePanel();
-      syncUpcoming();
+      void api.playback.queueClear().then(applySnapshot);
+    },
+    onReorder: (fromIndex, toIndex) => {
+      void api.playback.queueReorder(fromIndex, toIndex).then(applySnapshot);
     },
   });
 
@@ -221,39 +230,29 @@ async function boot(): Promise<void> {
       void goNext();
     },
     onPlayPause: () => {
-      void (async () => {
-        const track = queue.getCurrent();
-        if (!track) return;
-        const state = await api.playback.getPlaybackState();
-        if (state.status === "playing") await api.playback.pause();
-        else if (state.status === "paused") await api.playback.resume();
-        else await api.playback.playTrack(track.id);
-      })();
+      void togglePlay();
     },
     onToggleShuffle: () => {
-      const shuffled = queue.toggleShuffle();
-      syncTransportControls();
-      refreshQueuePanel();
-      syncUpcoming();
-      syncMprisControls();
-      return shuffled;
+      return api.playback.queueToggleShuffle().then((snap) => {
+        applySnapshot(snap);
+        return snap.shuffle;
+      });
     },
     onCycleRepeat: () => {
-      const repeat = queue.cycleRepeat();
-      syncTransportControls();
-      syncUpcoming();
-      syncMprisControls();
-      return repeat;
+      return api.playback.queueCycleRepeat().then((snap) => {
+        applySnapshot(snap);
+        return snap.repeat;
+      });
     },
     onToggleFavorite: () => {
       void toggleNowPlayingFavorite();
     },
     onAddToPlaylist: () => {
-      const track = queue.getCurrent();
+      const track = currentTrack();
       if (track) playlistPicker.open(track);
     },
     onOpenQueue: () => queuePanel.open(),
-    getNextTrack: () => queue.getNext() ?? null,
+    getNextTrack: () => nextTrack(),
     onFullscreenOpen: () => lyricsPanel.setFullscreenHostActive(true),
     onFullscreenClose: () => {
       lyricsPanel.setFullscreenHostActive(false);
@@ -265,23 +264,20 @@ async function boot(): Promise<void> {
     onPrev: () => void goPrev(),
     onNext: () => void goNext(),
     onToggleShuffle: () => {
-      const shuffled = queue.toggleShuffle();
-      syncTransportControls();
-      refreshQueuePanel();
-      syncUpcoming();
-      syncMprisControls();
-      return shuffled;
+      return api.playback.queueToggleShuffle().then((snap) => {
+        applySnapshot(snap);
+        return snap.shuffle;
+      });
     },
     onCycleRepeat: () => {
-      const repeat = queue.cycleRepeat();
-      syncTransportControls();
-      syncUpcoming();
-      syncMprisControls();
-      return repeat;
+      return api.playback.queueCycleRepeat().then((snap) => {
+        applySnapshot(snap);
+        return snap.repeat;
+      });
     },
     onToggleFavorite: () => void toggleNowPlayingFavorite(),
     onAddToPlaylist: () => {
-      const track = queue.getCurrent();
+      const track = currentTrack();
       if (track) void playlistPicker.open(track);
     },
     onToggleMute: () => {
@@ -310,27 +306,16 @@ async function boot(): Promise<void> {
     onGoToAlbum: (name) => router.openAlbum(name),
     onAddToPlaylist: (track) => void playlistPicker.open(track),
     onPlayNext: (track) => {
-      queue.insertNext(track);
-      refreshQueuePanel();
-      syncUpcoming();
+      void api.playback.queueInsertNext(track.id).then(applySnapshot);
     },
     onAddToQueue: (track) => {
-      queue.append(track);
-      refreshQueuePanel();
-      syncUpcoming();
+      void api.playback.queueAppend(track.id).then(applySnapshot);
     },
   });
 
   initKeyboardShortcuts({
     onPlayPause: () => {
-      void (async () => {
-        const track = queue.getCurrent();
-        if (!track) return;
-        const state = await api.playback.getPlaybackState();
-        if (state.status === "playing") await api.playback.pause();
-        else if (state.status === "paused") await api.playback.resume();
-        else await api.playback.playTrack(track.id);
-      })();
+      void togglePlay();
     },
     onNext: () => void goNext(),
     onPrev: () => void goPrev(),
@@ -362,17 +347,10 @@ async function boot(): Promise<void> {
       closeOpenModals();
     },
     onToggleShuffle: () => {
-      queue.toggleShuffle();
-      syncTransportControls();
-      refreshQueuePanel();
-      syncUpcoming();
-      syncMprisControls();
+      void api.playback.queueToggleShuffle().then(applySnapshot);
     },
     onCycleRepeat: () => {
-      queue.cycleRepeat();
-      syncTransportControls();
-      syncUpcoming();
-      syncMprisControls();
+      void api.playback.queueCycleRepeat().then(applySnapshot);
     },
     onOpenQueue: () => queuePanel.open(),
     onToggleLyrics: () => lyricsPanel.toggle(),
@@ -485,10 +463,14 @@ async function boot(): Promise<void> {
     void playlists.refresh();
   });
 
+  void api.events.onQueueChanged((snap) => {
+    applySnapshot(snap);
+  });
+
   void api.events.onPlaybackTrackChanged((track) => {
     saveLastTrackId(track.id);
     libraryPage.setPlayingTrackId(track.id);
-    void setNowPlayingTrack(track);
+    void showTrack(track);
     void libraryPage.refresh();
     refreshQueuePanel();
   });
@@ -506,65 +488,28 @@ async function boot(): Promise<void> {
     lyricsPanel.setPosition(payload.positionSecs);
   });
 
-  void api.events.onPlaybackEnded(async () => {
-    // No preloaded next track: the engine stopped. Advance the queue and
-    // start the next track explicitly (repeat-one replays the current track).
-    const next =
-      queue.getRepeatMode() === "one" ? queue.getCurrent() : queue.advance();
-    if (next) {
-      await playQueuedTrack(next);
-      refreshQueuePanel();
-      return;
-    }
-    libraryPage.setPlayingTrackId(null);
-    await setNowPlayingTrack(null);
-    void api.playback.getPlaybackState().then((state) => playerBar.sync(state));
+  void api.events.onPlaybackEnded(() => {
     void libraryPage.refresh();
     void statsPage.refresh();
     void recentPage.refresh();
     void playlists.refresh();
-    refreshQueuePanel();
+  });
+
+  void api.events.onPlaybackSessionIdle(async () => {
+    libraryPage.setPlayingTrackId(null);
+    await showTrack(null);
+    void api.playback.getPlaybackState().then((state) => playerBar.sync(state));
+    void libraryPage.refresh();
   });
 
   void api.events.onPlaybackAdvanced(async (payload) => {
-    // Gapless handoff: the engine already swapped to the preloaded track. Do
-    // NOT call play_track again — just advance the queue to match and refresh.
-    const advanced = queue.advance();
-    const track = advanced ?? payload.track;
-    saveLastTrackId(track.id);
-    libraryPage.setPlayingTrackId(track.id);
-    await setNowPlayingTrack(track);
-    void libraryPage.refresh();
+    saveLastTrackId(payload.track.id);
+    libraryPage.setPlayingTrackId(payload.track.id);
+    await showTrack(payload.track);
     refreshQueuePanel();
-    syncUpcoming();
+    void libraryPage.refresh();
     void statsPage.refresh();
     void recentPage.refresh();
-  });
-
-  // Desktop media keys / playerctl → route through the frontend queue.
-  void api.events.onMprisNext(() => {
-    void goNext();
-  });
-  void api.events.onMprisPrevious(() => {
-    void goPrev();
-  });
-  void api.events.onMprisShuffle((shuffle) => {
-    // The desktop asked to set shuffle to a specific value; toggle to match.
-    if (queue.isShuffled() !== shuffle) {
-      queue.toggleShuffle();
-      syncTransportControls();
-      refreshQueuePanel();
-      syncUpcoming();
-    }
-  });
-  void api.events.onMprisLoop((repeat) => {
-    const target = repeat === "one" ? "one" : repeat === "all" ? "all" : "off";
-    while (queue.getRepeatMode() !== target) {
-      queue.cycleRepeat();
-    }
-    syncTransportControls();
-    refreshQueuePanel();
-    syncUpcoming();
   });
 
   try {
@@ -583,7 +528,7 @@ async function boot(): Promise<void> {
   }
 
   const restoreStart = performance.now();
-  await restoreNowPlayingBar(playerBar, libraryPage, setNowPlayingTrack);
+  await restoreNowPlayingBar(playerBar, libraryPage, showTrack, applySnapshot);
   bootTimer.step(`restoreNowPlayingBar ${Math.round(performance.now() - restoreStart)}ms`);
 
   startBackgroundLibraryScan(libraryPage);
@@ -594,26 +539,41 @@ async function boot(): Promise<void> {
 async function restoreNowPlayingBar(
   playerBar: ReturnType<typeof initPlayerBar>,
   libraryPage: ReturnType<typeof initLibraryPage>,
-  setNowPlayingTrack: (track: Track | null) => Promise<void>,
+  showTrack: (track: Track | null) => Promise<void>,
+  applySnapshot: (snap: QueueSnapshot) => void,
 ): Promise<void> {
   const timer = new DevTimer("boot", "restoreNowPlayingBar");
+  const snap = await api.playback.getQueue();
+  applySnapshot(snap);
   const state = await api.playback.getPlaybackState();
   playerBar.sync(state);
   timer.step("getPlaybackState");
 
-  let trackId = state.trackId ?? getLastTrackId();
-  // Resume: on a fresh launch the engine is stopped, so restore the saved
-  // position (loaded paused; the user presses play to continue).
-  if (!state.trackId) {
+  let trackId = snap.currentId ?? state.trackId;
+  if (!trackId) {
     try {
       const resume = await api.playback.getResumeState();
       if (resume?.trackId) {
         trackId = resume.trackId;
         await api.playback.loadTrackPaused(resume.trackId, resume.positionSecs);
+        applySnapshot(await api.playback.getQueue());
         timer.step("loadTrackPaused");
       }
     } catch {
       /* resume is best-effort */
+    }
+  }
+
+  if (!trackId) {
+    const last = getLastTrackId();
+    if (last) {
+      try {
+        await api.playback.loadTrackPaused(last, 0);
+        trackId = last;
+        applySnapshot(await api.playback.getQueue());
+      } catch {
+        trackId = null;
+      }
     }
   }
 
@@ -625,8 +585,8 @@ async function restoreNowPlayingBar(
 
   try {
     const track = await api.library.getTrack(trackId);
-    await setNowPlayingTrack(track);
-    if (state.trackId) libraryPage.setPlayingTrackId(state.trackId);
+    await showTrack(track);
+    libraryPage.setPlayingTrackId(trackId);
     timer.finish(`trackId=${trackId}`);
   } catch {
     playerBar.setTrack(null);

@@ -98,12 +98,18 @@ impl Database {
     fn migrate_replaygain(&self) -> Result<(), String> {
         if !self.tracks_has_column("replay_gain_track_db")? {
             self.conn
-                .execute("ALTER TABLE tracks ADD COLUMN replay_gain_track_db REAL", [])
+                .execute(
+                    "ALTER TABLE tracks ADD COLUMN replay_gain_track_db REAL",
+                    [],
+                )
                 .map_err(|e| e.to_string())?;
         }
         if !self.tracks_has_column("replay_gain_track_peak")? {
             self.conn
-                .execute("ALTER TABLE tracks ADD COLUMN replay_gain_track_peak REAL", [])
+                .execute(
+                    "ALTER TABLE tracks ADD COLUMN replay_gain_track_peak REAL",
+                    [],
+                )
                 .map_err(|e| e.to_string())?;
         }
         Ok(())
@@ -217,11 +223,7 @@ impl Database {
             return Ok(removed);
         }
 
-        let placeholders = keep_ids
-            .iter()
-            .map(|_| "?")
-            .collect::<Vec<_>>()
-            .join(", ");
+        let placeholders = keep_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let sql = format!("DELETE FROM tracks WHERE id NOT IN ({placeholders})");
         let params: Vec<&dyn rusqlite::ToSql> = keep_ids
             .iter()
@@ -239,9 +241,7 @@ impl Database {
     }
 
     pub fn commit_batch(&mut self) -> Result<(), String> {
-        self.conn
-            .execute_batch("COMMIT")
-            .map_err(|e| e.to_string())
+        self.conn.execute_batch("COMMIT").map_err(|e| e.to_string())
     }
 
     pub fn get_library_facets(&self) -> Result<LibraryFacets, String> {
@@ -300,11 +300,7 @@ impl Database {
         })
     }
 
-    pub fn upsert_track(
-        &mut self,
-        file: &ScannedFile,
-        meta: &TrackMetadata,
-    ) -> Result<(), String> {
+    pub fn upsert_track(&mut self, file: &ScannedFile, meta: &TrackMetadata) -> Result<(), String> {
         let scanned_at = now_ms();
         self.conn
             .execute(
@@ -630,12 +626,17 @@ impl Database {
     }
 
     /// Saved configuration for a smart playlist, or `None` if it is not smart.
-    pub fn get_smart_playlist_config(&self, playlist_id: &str) -> Result<Option<SmartPlaylistConfig>, String> {
+    pub fn get_smart_playlist_config(
+        &self,
+        playlist_id: &str,
+    ) -> Result<Option<SmartPlaylistConfig>, String> {
         let mut stmt = self
             .conn
             .prepare("SELECT config FROM smart_playlist_rules WHERE playlist_id = ?1")
             .map_err(|e| e.to_string())?;
-        let mut rows = stmt.query(params![playlist_id]).map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query(params![playlist_id])
+            .map_err(|e| e.to_string())?;
         if let Some(row) = rows.next().map_err(|e| e.to_string())? {
             let json: String = row.get(0).map_err(|e| e.to_string())?;
             let config = serde_json::from_str(&json)
@@ -654,7 +655,10 @@ impl Database {
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
         let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
-        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| e.to_string())?;
         tx.execute(
             "INSERT INTO playlists (id, name, created_at, updated_at, kind) VALUES (?1, ?2, ?3, ?4, 'smart')",
             params![id, name, now, now],
@@ -684,7 +688,10 @@ impl Database {
     ) -> Result<Playlist, String> {
         self.ensure_user_playlist(id)?;
         let now = now_ms();
-        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| e.to_string())?;
         if let Some(name) = name {
             tx.execute(
                 "UPDATE playlists SET name = ?1, updated_at = ?2 WHERE id = ?3",
@@ -713,7 +720,10 @@ impl Database {
     /// Evaluate a smart playlist config into a live track list. Rules that
     /// fail to parse (bad value for the field/op) are skipped so one bad rule
     /// never blanks the whole playlist.
-    pub fn evaluate_smart_playlist(&self, config: &SmartPlaylistConfig) -> Result<Vec<Track>, String> {
+    pub fn evaluate_smart_playlist(
+        &self,
+        config: &SmartPlaylistConfig,
+    ) -> Result<Vec<Track>, String> {
         let mut sql = String::from(
             "SELECT t.id, t.id, t.absolute_path, t.extension, t.file_size, t.modified_ms,
                     t.title, t.artist, t.album, t.genre, t.year, t.duration_secs,
@@ -744,10 +754,7 @@ impl Database {
             }
         }
 
-        let order_by = smart_order_by(
-            config.sort_by.as_deref(),
-            config.sort_order.as_deref(),
-        );
+        let order_by = smart_order_by(config.sort_by.as_deref(), config.sort_order.as_deref());
         sql.push_str(&format!(" ORDER BY {order_by}"));
 
         if let Some(limit) = config.limit {
@@ -759,7 +766,9 @@ impl Database {
         let mut stmt = self.conn.prepare(&sql).map_err(|e| e.to_string())?;
         let param_refs: Vec<&dyn rusqlite::ToSql> =
             bind.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
-        let rows = stmt.query(param_refs.as_slice()).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query(param_refs.as_slice())
+            .map_err(|e| e.to_string())?;
         let mut tracks = Vec::new();
         let mut rows = rows;
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -1073,16 +1082,14 @@ fn smart_rule_fragment(
             };
             Some((frag.to_string(), Some(Value::Integer(v))))
         }
-        "liked" => {
-            match op.as_str() {
-                "is" | "equals" => match raw.to_ascii_lowercase().as_str() {
-                    "true" | "1" | "yes" => Some(("f.track_id IS NOT NULL".to_string(), None)),
-                    "false" | "0" | "no" => Some(("f.track_id IS NULL".to_string(), None)),
-                    _ => None,
-                },
+        "liked" => match op.as_str() {
+            "is" | "equals" => match raw.to_ascii_lowercase().as_str() {
+                "true" | "1" | "yes" => Some(("f.track_id IS NOT NULL".to_string(), None)),
+                "false" | "0" | "no" => Some(("f.track_id IS NULL".to_string(), None)),
                 _ => None,
-            }
-        }
+            },
+            _ => None,
+        },
         "haslyrics" | "has_lyrics" => {
             let has = "(t.has_lrc = 1 OR t.embedded_lyrics IS NOT NULL)";
             match op.as_str() {
@@ -1111,7 +1118,10 @@ fn smart_rule_fragment(
 }
 
 fn smart_order_by(sort_by: Option<&str>, sort_order: Option<&str>) -> String {
-    let sort_dir = if sort_order.map(|s| s.eq_ignore_ascii_case("desc")).unwrap_or(false) {
+    let sort_dir = if sort_order
+        .map(|s| s.eq_ignore_ascii_case("desc"))
+        .unwrap_or(false)
+    {
         "DESC"
     } else {
         "ASC"

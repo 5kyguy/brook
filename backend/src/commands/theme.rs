@@ -10,7 +10,9 @@ pub struct ThemeHub {
 }
 
 pub fn install(app: &AppHandle) -> Result<(), String> {
-    let current = Arc::new(Mutex::new(theme::load_theme_file(&theme::theme_file_path())));
+    let current = Arc::new(Mutex::new(
+        theme::load_theme_file(&theme::theme_file_path()),
+    ));
     let watched = Arc::clone(&current);
     let handle = app.clone();
     let watch = ThemeWatch::spawn(theme::theme_file_path(), move |snapshot| {

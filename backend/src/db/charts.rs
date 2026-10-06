@@ -40,7 +40,8 @@ impl Database {
             .get_setting(SETTINGS_CHARTS_YEAR)?
             .and_then(|v| v.parse::<i32>().ok());
 
-        let day_changed = last_day.as_deref() != Some(today.format("%Y-%m-%d").to_string().as_str());
+        let day_changed =
+            last_day.as_deref() != Some(today.format("%Y-%m-%d").to_string().as_str());
         let quarter_changed = last_quarter.as_deref() != Some(quarter_key.as_str());
         let year_changed = last_year != Some(year_key);
 
@@ -54,16 +55,8 @@ impl Database {
         let (q_start, q_end) = quarter_bounds(today);
         let (y_start, y_end) = year_bounds(today.year());
 
-        self.ensure_chart_playlist(
-            ID_WEEKLY_TOP,
-            "Weekly Top 25",
-            PlaylistKind::WeeklyTop,
-        )?;
-        self.ensure_chart_playlist(
-            ID_MONTHLY_TOP,
-            "Monthly Top 50",
-            PlaylistKind::MonthlyTop,
-        )?;
+        self.ensure_chart_playlist(ID_WEEKLY_TOP, "Weekly Top 25", PlaylistKind::WeeklyTop)?;
+        self.ensure_chart_playlist(ID_MONTHLY_TOP, "Monthly Top 50", PlaylistKind::MonthlyTop)?;
         self.ensure_chart_playlist(
             ID_QUARTERLY_TOP,
             &quarterly_playlist_name(today),
@@ -80,10 +73,7 @@ impl Database {
         self.replace_chart_tracks(ID_QUARTERLY_TOP, q_start, q_end, LIMIT_QUARTERLY)?;
         self.replace_chart_tracks(ID_YEARLY_TOP, y_start, y_end, LIMIT_YEARLY)?;
 
-        self.set_setting(
-            SETTINGS_CHARTS_DAY,
-            &today.format("%Y-%m-%d").to_string(),
-        )?;
+        self.set_setting(SETTINGS_CHARTS_DAY, &today.format("%Y-%m-%d").to_string())?;
         self.set_setting(SETTINGS_CHARTS_QUARTER, &quarter_key)?;
         self.set_setting(SETTINGS_CHARTS_YEAR, &year_key.to_string())?;
         Ok(())

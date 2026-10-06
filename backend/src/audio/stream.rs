@@ -283,13 +283,17 @@ fn probe_stream(
     let codec_params = track.codec_params.clone();
 
     let sample_rate = codec_params.sample_rate.unwrap_or(48_000);
-    let channels = codec_params
-        .channels
-        .map(|c| c.count() as u16)
-        .unwrap_or(2);
+    let channels = codec_params.channels.map(|c| c.count() as u16).unwrap_or(2);
     let duration_secs = duration_from_params(&codec_params);
 
-    Ok((format, track_id, codec_params, sample_rate, channels, duration_secs))
+    Ok((
+        format,
+        track_id,
+        codec_params,
+        sample_rate,
+        channels,
+        duration_secs,
+    ))
 }
 
 fn duration_from_params(codec_params: &symphonia::core::codecs::CodecParameters) -> Option<f64> {

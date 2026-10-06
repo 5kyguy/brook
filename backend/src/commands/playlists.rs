@@ -95,7 +95,11 @@ pub fn update_playlist(
 }
 
 #[tauri::command]
-pub fn delete_playlist(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+pub fn delete_playlist(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
     {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.delete_playlist(&id)?;

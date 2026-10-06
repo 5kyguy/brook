@@ -36,7 +36,9 @@ pub fn set_music_root(state: State<'_, AppState>, path: String) -> Result<String
     if !dir.is_dir() {
         return Err(format!("Not a folder: {trimmed}"));
     }
-    let canonical = dir.canonicalize().map_err(|e| format!("Invalid folder: {e}"))?;
+    let canonical = dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid folder: {e}"))?;
     apply_music_root(&state, canonical)
 }
 
@@ -107,14 +109,13 @@ pub fn get_track(state: State<'_, AppState>, id: String) -> Result<Track, String
 }
 
 #[tauri::command]
-pub fn get_album_art(state: State<'_, AppState>, id: String) -> Result<Option<AlbumArtPayload>, String> {
+pub fn get_album_art(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<AlbumArtPayload>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let row = db.get_track_row(&id)?;
-    cover_art::get_cover(
-        &state.covers_dir,
-        Path::new(&row.absolute_path),
-        &row.id,
-    )
+    cover_art::get_cover(&state.covers_dir, Path::new(&row.absolute_path), &row.id)
 }
 
 #[tauri::command]
@@ -124,11 +125,7 @@ pub fn get_album_art_thumb(
 ) -> Result<Option<AlbumArtPayload>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let row = db.get_track_row(&id)?;
-    cover_art::get_cover_thumb(
-        &state.covers_dir,
-        Path::new(&row.absolute_path),
-        &row.id,
-    )
+    cover_art::get_cover_thumb(&state.covers_dir, Path::new(&row.absolute_path), &row.id)
 }
 
 /// Resolve list thumbnails for many track ids in one IPC round-trip. Returns
@@ -157,7 +154,9 @@ pub fn get_album_art_batch(
     for id in ids {
         let art = paths
             .get(&id)
-            .and_then(|path| cover_art::get_cover_thumb(&state.covers_dir, Path::new(path), &id).ok())
+            .and_then(|path| {
+                cover_art::get_cover_thumb(&state.covers_dir, Path::new(path), &id).ok()
+            })
             .flatten();
         out.push(AlbumArtBatchItem { id, art });
     }

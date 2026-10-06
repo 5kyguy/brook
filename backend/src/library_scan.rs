@@ -194,7 +194,8 @@ pub fn perform_library_scan(app: &AppHandle, state: &AppState) -> Result<ScanRes
         needs_read
             .par_iter()
             .map(|file| {
-                let meta = metadata::read_metadata(Path::new(&file.absolute_path)).unwrap_or_default();
+                let meta =
+                    metadata::read_metadata(Path::new(&file.absolute_path)).unwrap_or_default();
                 progress.advance(Some(file.relative_path.clone()));
                 (*file, meta)
             })
@@ -232,10 +233,7 @@ pub fn perform_library_scan(app: &AppHandle, state: &AppState) -> Result<ScanRes
     }
 
     let track_count = total;
-    let _ = app.emit(
-        "library:scan-complete",
-        ScanCompletePayload { track_count },
-    );
+    let _ = app.emit("library:scan-complete", ScanCompletePayload { track_count });
 
     let result = ScanResult {
         track_count,
@@ -257,10 +255,7 @@ pub fn perform_library_scan(app: &AppHandle, state: &AppState) -> Result<ScanRes
 
 /// Spawn a background scan if none is running.
 pub fn spawn_background_scan(app: AppHandle, state: &AppState) {
-    if state
-        .scan_in_progress
-        .swap(true, Ordering::AcqRel)
-    {
+    if state.scan_in_progress.swap(true, Ordering::AcqRel) {
         dev_log::append("scan", "start_library_scan skipped (already running)");
         return;
     }
@@ -274,9 +269,7 @@ pub fn spawn_background_scan(app: AppHandle, state: &AppState) {
         .await;
 
         let state = app.state::<AppState>();
-        state
-            .scan_in_progress
-            .store(false, Ordering::Release);
+        state.scan_in_progress.store(false, Ordering::Release);
 
         match scan_result {
             Ok(Ok(_)) => {}
