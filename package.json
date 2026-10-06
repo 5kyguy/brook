@@ -17,10 +17,10 @@
     "icons": "tauri icon backend/app-icon.png -o backend/icons && cp backend/icons/128x128@2x.png frontend/public/assets/appicon.png && cp backend/icons/32x32.png frontend/public/assets/favicon.png"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.9.0"
+    "@tauri-apps/api": "~2.12.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.9.0",
+    "@tauri-apps/cli": "~2.12.1",
     "lucide-static": "^1.17.0",
     "svgo": "^4.0.1",
     "typescript": "^5.9.0",
