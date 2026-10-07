@@ -131,14 +131,18 @@ export function applyTrackCovers(container: HTMLElement): void {
   });
 }
 
-/** Player / now-playing uses the full image. */
+/** Player / now-playing uses the full image. A slower fetch for an older
+ *  track must not replace the cover after the track has already changed. */
 export function setCoverImage(img: HTMLImageElement | null, trackId: string | null): void {
   if (!img) return;
+  const token = trackId ?? "";
+  img.dataset.coverTrack = token;
   if (!trackId) {
     img.src = COVER_PLACEHOLDER;
     return;
   }
   void getTrackCoverUrl(trackId, "full").then((url) => {
+    if (img.dataset.coverTrack !== token) return;
     img.src = url;
   });
 }

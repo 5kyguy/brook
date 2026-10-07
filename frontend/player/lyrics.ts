@@ -34,36 +34,16 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
   let hasLyrics = false;
   let fullscreenHostActive = false;
   let fullscreenLyricsOpen = false;
+  let positionSecs = 0;
+  let requestId = 0;
 
   const renderTarget = () => {
     if (fullscreenHostActive && fullscreenLyricsOpen) return fsContent;
     return content;
   };
 
-  const renderLines = (positionMs = 0) => {
-    const target = renderTarget();
-    if (!target) return;
-    if (!hasLyrics) {
-      target.innerHTML = `<p class="lyrics-error">No lyrics for this track.</p>`;
-      return;
-    }
-
-    const active = synced ? activeLineIndex(lines, positionMs) : -1;
-    target.innerHTML = lines
-      .map((line, index) => {
-        let cls = "synced-line";
-        if (synced) {
-          if (index === active) cls += " active";
-          else if (index === active + 1) cls += " upcoming";
-          else if (index < active) cls += " past";
-          cls += " clickable";
-        }
-        return `<div class="${cls}"${synced ? ` data-time-ms="${line.timeMs}"` : ""}>${escapeHtml(line.text)}</div>`;
-      })
-      .join("");
-
-    scrollActiveLineIntoView(target);
-  };
+  const lineSignature = () =>
+    `${hasLyrics ? 1 : 0}:${synced ? 1 : 0}:${lines.length}:${lines[0]?.timeMs ?? 0}:${lines.at(-1)?.timeMs ?? 0}`;
 
   const scrollActiveLineIntoView = (container: HTMLElement) => {
     if (!synced) return;
@@ -71,7 +51,55 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
     if (!activeEl) return;
     const targetTop =
       activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
-    container.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+    container.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+  };
+
+  const paintActiveLine = (target: HTMLElement, positionMs: number) => {
+    if (!synced) return;
+    const active = activeLineIndex(lines, positionMs);
+    if (target.dataset.activeIndex === String(active)) return;
+    target.dataset.activeIndex = String(active);
+    const rows = target.querySelectorAll<HTMLElement>(".synced-line");
+    rows.forEach((row, index) => {
+      row.classList.toggle("active", index === active);
+      row.classList.toggle("upcoming", index === active + 1);
+      row.classList.toggle("past", index < active);
+    });
+    scrollActiveLineIntoView(target);
+  };
+
+  const renderLines = (positionMs = positionSecs * 1000) => {
+    const target = renderTarget();
+    if (!target) return;
+    if (!hasLyrics) {
+      target.dataset.lyricsSig = "";
+      target.dataset.activeIndex = "";
+      target.innerHTML = `<p class="lyrics-error">No lyrics for this track.</p>`;
+      return;
+    }
+
+    const signature = lineSignature();
+    if (target.dataset.lyricsSig !== signature) {
+      const active = synced ? activeLineIndex(lines, positionMs) : -1;
+      target.dataset.lyricsSig = signature;
+      target.dataset.activeIndex = String(active);
+      target.innerHTML = lines
+        .map((line, index) => {
+          let cls = "synced-line";
+          if (synced) {
+            if (index === active) cls += " active";
+            else if (index === active + 1) cls += " upcoming";
+            else if (index < active) cls += " past";
+            cls += " clickable";
+          }
+          return `<div class="${cls}"${synced ? ` data-time-ms="${line.timeMs}"` : ""}>${escapeHtml(line.text)}</div>`;
+        })
+        .join("");
+      scrollActiveLineIntoView(target);
+      return;
+    }
+
+    paintActiveLine(target, positionMs);
   };
 
   const syncLyricsButtons = () => {
@@ -90,7 +118,7 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
     fsLyricsBtn?.classList.toggle("active", open);
     options.onFullscreenLyricsChange?.(open);
     if (open) {
-      renderLines();
+      renderLines(positionSecs * 1000);
     } else if (fsContent) {
       fsContent.innerHTML = "";
     }
@@ -102,7 +130,7 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
     panel.dataset.view = "lyrics";
     if (titleEl) titleEl.textContent = "Lyrics";
     toggleBtn?.classList.add("active");
-    renderLines();
+    renderLines(positionSecs * 1000);
   };
 
   const closeSidePanel = () => {
@@ -142,9 +170,16 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
 
   return {
     async setTrack(track) {
+      const token = ++requestId;
       lines = [];
       synced = false;
       hasLyrics = false;
+      const showing = renderTarget();
+      if (showing) {
+        showing.dataset.lyricsSig = "";
+        showing.dataset.activeIndex = "";
+        showing.replaceChildren();
+      }
 
       if (!track) {
         syncLyricsButtons();
@@ -155,6 +190,7 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
 
       try {
         const result = await api.lyrics.readLyrics(track.id);
+        if (token !== requestId) return;
         if (result.source === "none" || !result.text?.trim()) {
           syncLyricsButtons();
           closeSidePanel();
@@ -175,18 +211,20 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
 
         syncLyricsButtons();
         if (panel?.classList.contains("active") && panel.dataset.view === "lyrics") {
-          renderLines();
+          renderLines(positionSecs * 1000);
         }
         if (fullscreenLyricsOpen) {
-          renderLines();
+          renderLines(positionSecs * 1000);
         }
       } catch {
+        if (token !== requestId) return;
         syncLyricsButtons();
         closeSidePanel();
         setFullscreenLyricsOpen(false);
       }
     },
-    setPosition(positionSecs) {
+    setPosition(nextPositionSecs) {
+      positionSecs = nextPositionSecs;
       const lyricsVisible =
         (fullscreenHostActive && fullscreenLyricsOpen) ||
         (panel?.classList.contains("active") && panel.dataset.view === "lyrics");
@@ -219,7 +257,7 @@ export function initLyricsPanel(options: LyricsPanelOptions = {}): LyricsPanel {
         return;
       }
       if (fullscreenLyricsOpen) {
-        renderLines();
+        renderLines(positionSecs * 1000);
       }
     },
     close() {

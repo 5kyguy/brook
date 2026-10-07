@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4
+
+### Playback
+
+- The focused player updates the cover when the track changes
+- The seek bar stays on the artwork and matches playback
+- Lyrics stay on the current line
+
 ## 0.1.3
 
 ### Install

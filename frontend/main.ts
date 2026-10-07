@@ -480,7 +480,10 @@ async function boot(): Promise<void> {
   void api.events.onPlaybackState((payload) => {
     visualizer.syncPlaybackState(payload.status);
     void api.playback.getPlaybackState().then((state) => {
-      playerBar.sync({ ...state, status: payload.status });
+      const next = { ...state, status: payload.status };
+      playerBar.sync(next);
+      visualizer.setProgress(next.positionSecs, next.durationSecs);
+      lyricsPanel.setPosition(next.positionSecs);
     });
   });
 
@@ -530,7 +533,16 @@ async function boot(): Promise<void> {
   }
 
   const restoreStart = performance.now();
-  await restoreNowPlayingBar(playerBar, libraryPage, showTrack, applySnapshot);
+  if (visualizer) {
+    await restoreNowPlayingBar(
+      playerBar,
+      visualizer,
+      lyricsPanel,
+      libraryPage,
+      showTrack,
+      applySnapshot,
+    );
+  }
   bootTimer.step(`restoreNowPlayingBar ${Math.round(performance.now() - restoreStart)}ms`);
 
   startBackgroundLibraryScan(libraryPage);
@@ -540,6 +552,8 @@ async function boot(): Promise<void> {
 
 async function restoreNowPlayingBar(
   playerBar: ReturnType<typeof initPlayerBar>,
+  visualizer: ReturnType<typeof initVisualizer>,
+  lyricsPanel: ReturnType<typeof initLyricsPanel>,
   libraryPage: ReturnType<typeof initLibraryPage>,
   showTrack: (track: Track | null) => Promise<void>,
   applySnapshot: (snap: QueueSnapshot) => void,
@@ -549,6 +563,9 @@ async function restoreNowPlayingBar(
   applySnapshot(snap);
   const state = await api.playback.getPlaybackState();
   playerBar.sync(state);
+  visualizer.setProgress(state.positionSecs, state.durationSecs);
+  visualizer.syncPlaybackState(state.status);
+  lyricsPanel.setPosition(state.positionSecs);
   timer.step("getPlaybackState");
 
   let trackId = snap.currentId ?? state.trackId;

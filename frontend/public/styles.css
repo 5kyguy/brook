@@ -7605,23 +7605,29 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     min-width: 0;
     height: 100%;
     overflow: hidden;
+    container-type: size;
 }
 
 #fullscreen-cover-overlay .fullscreen-artwork-stack {
-    width: min(420px, 100%);
+    width: min(420px, 100%, calc(100cqh - 10.5rem));
+    max-width: 100%;
+    height: auto;
     max-height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    justify-content: center;
     gap: 0.85rem;
-    flex-shrink: 0;
+    flex-shrink: 1;
 }
 
 #fullscreen-cover-overlay .fullscreen-artwork-card {
     position: relative;
     width: 100%;
+    height: auto;
     aspect-ratio: 1 / 1;
-    flex-shrink: 0;
+    flex: 0 0 auto;
     border-radius: 18px;
     overflow: hidden;
     box-shadow: 0 28px 80px rgb(0 0 0 / 0.35);
@@ -7672,11 +7678,26 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     flex-direction: column;
     gap: 0.65rem;
     width: 100%;
+    align-self: stretch;
     flex-shrink: 0;
 }
 
 #fullscreen-cover-overlay .fullscreen-progress-container {
     width: 100%;
+}
+
+#fullscreen-cover-overlay .fullscreen-progress-container span {
+    flex-shrink: 0;
+}
+
+#fullscreen-cover-overlay .fullscreen-progress-container .progress-bar {
+    min-width: 0;
+    overflow: hidden;
+}
+
+#fullscreen-cover-overlay .fullscreen-progress-container .progress-fill {
+    max-width: 100%;
+    transition: none;
 }
 
 #fullscreen-cover-overlay .fullscreen-buttons {
@@ -7854,6 +7875,10 @@ body:has(#side-panel.active) #close-fullscreen-cover-btn {
     #fullscreen-cover-overlay .fullscreen-primary {
         height: auto;
         min-height: 0;
+    }
+
+    #fullscreen-cover-overlay .fullscreen-artwork-stack {
+        width: min(420px, 100%);
     }
 
     #fullscreen-cover-overlay:not(.lyrics-open) .fullscreen-lyrics-pane {

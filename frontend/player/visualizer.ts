@@ -1,6 +1,6 @@
 import * as api from "../api";
 import type { PlaybackState, RepeatMode, Track } from "../types";
-import { applyTrackCovers, COVER_PLACEHOLDER } from "../ui/cover-art";
+import { applyTrackCovers, COVER_PLACEHOLDER, setCoverImage } from "../ui/cover-art";
 import { formatDuration, trackArtist, trackLabel } from "../ui/dom";
 import { SVG_HEART, SVG_HEART_FILLED, SVG_PAUSE, SVG_PLAY } from "../ui/icons";
 import { bindDragSlider } from "./slider";
@@ -120,12 +120,12 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
   };
 
   const setFsProgressUi = (position: number, duration: number) => {
-    if (fsCurrentTime) fsCurrentTime.textContent = formatDuration(position);
+    const bounded = duration > 0 ? Math.min(duration, Math.max(0, position)) : 0;
+    if (fsCurrentTime) fsCurrentTime.textContent = formatDuration(bounded);
     if (fsTotalTime) fsTotalTime.textContent = formatDuration(duration);
-    if (fsProgressFill && duration > 0) {
-      fsProgressFill.style.width = `${(position / duration) * 100}%`;
-    } else if (fsProgressFill) {
-      fsProgressFill.style.width = "0%";
+    if (fsProgressFill) {
+      const ratio = duration > 0 ? bounded / duration : 0;
+      fsProgressFill.style.width = `${ratio * 100}%`;
     }
   };
 
@@ -239,7 +239,7 @@ export function initVisualizer(handlers: FullscreenHandlers = {}): VisualizerCon
     if (titleEl) titleEl.textContent = track ? trackLabel(track) : "";
     if (artistEl) artistEl.textContent = track ? trackArtist(track) : "";
     if (coverImage) {
-      coverImage.src = barCover?.src ?? "./assets/appicon.png";
+      setCoverImage(coverImage, track?.id ?? null);
     }
     syncLikeButton(track);
     syncUpNext(handlers.getNextTrack?.() ?? null);

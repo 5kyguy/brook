@@ -92,12 +92,12 @@ export function initPlayerBar(options: PlayerBarOptions = {}): PlayerBar {
   };
 
   const setProgressUi = (position: number, duration: number) => {
-    if (currentTimeEl) currentTimeEl.textContent = formatDuration(position);
+    const bounded = duration > 0 ? Math.min(duration, Math.max(0, position)) : 0;
+    if (currentTimeEl) currentTimeEl.textContent = formatDuration(bounded);
     if (totalTimeEl) totalTimeEl.textContent = formatDuration(duration);
-    if (progressFill && duration > 0) {
-      progressFill.style.width = `${(position / duration) * 100}%`;
-    } else if (progressFill) {
-      progressFill.style.width = "0%";
+    if (progressFill) {
+      const ratio = duration > 0 ? bounded / duration : 0;
+      progressFill.style.width = `${ratio * 100}%`;
     }
   };
 
