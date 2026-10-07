@@ -695,9 +695,19 @@ struct GithubAsset {
     browser_download_url: String,
 }
 
+/// Host tools must not inherit the AppImage library path. System curl is built
+/// against the system nghttp2; the copy bundled in the AppImage is older and
+/// curl exits with an undefined-symbol error.
+fn system_command(program: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
+    command.env_remove("LD_LIBRARY_PATH");
+    command.env_remove("LD_PRELOAD");
+    command
+}
+
 fn fetch_latest_release() -> Result<GithubRelease, String> {
     let url = format!("https://api.github.com/repos/{RELEASE_REPO}/releases/latest");
-    let output = std::process::Command::new("curl")
+    let output = system_command("curl")
         .args([
             "-fsSL",
             "--max-time",
@@ -739,7 +749,7 @@ fn release_asset<'a>(assets: &'a [GithubAsset], arch: &str) -> Result<&'a Github
 }
 
 fn curl_to_file(url: &str, dest: &std::path::Path) -> Result<(), String> {
-    let status = std::process::Command::new("curl")
+    let status = system_command("curl")
         .args(["-fL", "--retry", "3", "--max-time", "300", "-o"])
         .arg(dest)
         .arg(url)
@@ -759,7 +769,7 @@ fn verify_release_checksum(
     tag: &str,
 ) -> Result<(), String> {
     let url = format!("https://github.com/{RELEASE_REPO}/releases/download/{tag}/SHA256SUMS");
-    let output = std::process::Command::new("curl")
+    let output = system_command("curl")
         .args(["-fsSL", "--max-time", "30", &url])
         .output()
         .map_err(|error| format!("could not run curl: {error}"))?;
@@ -776,7 +786,7 @@ fn verify_release_checksum(
     let Some(expected) = expected else {
         return Err(format!("no checksum entry for {filename}"));
     };
-    let hashed = std::process::Command::new("sha256sum")
+    let hashed = system_command("sha256sum")
         .arg(path)
         .output()
         .map_err(|error| format!("could not run sha256sum: {error}"))?;
@@ -1084,6 +1094,28 @@ mod tests {
         assert_eq!(launcher_for(&dir.join("Other.AppImage")), None);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn system_command_drops_the_appimage_library_path() {
+        let mut command = super::system_command("sh");
+        command.args([
+            "-c",
+            r#"printf '%s:%s' "${LD_LIBRARY_PATH-unset}" "${LD_PRELOAD-unset}""#,
+        ]);
+        // The child inherits this process environment. env_remove must still
+        // drop the AppImage path that was present when curl is started.
+        std::env::set_var("LD_LIBRARY_PATH", "/from/appimage/usr/lib");
+        std::env::set_var("LD_PRELOAD", "/usr/lib/libwayland-client.so.0");
+        let output = command.output().unwrap();
+        std::env::remove_var("LD_LIBRARY_PATH");
+        std::env::remove_var("LD_PRELOAD");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), "unset:unset");
     }
 
     #[test]

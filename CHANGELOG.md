@@ -2,6 +2,10 @@
 
 ## 0.1.4
 
+### Install
+
+- `brook --update` uses the system curl, so the AppImage library path does not break the release check
+
 ### Playback
 
 - The focused player updates the cover when the track changes
