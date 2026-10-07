@@ -11,6 +11,7 @@
 - The focused player updates the cover when the track changes
 - The seek bar stays on the artwork and matches playback
 - Lyrics stay on the current line
+- Playback position stays with the audio, so the timer, seek bar, and lyrics no longer run ahead on stereo tracks
 
 ## 0.1.3
 

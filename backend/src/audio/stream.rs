@@ -123,6 +123,7 @@ impl StreamSession {
             sample_rate: self.sample_rate,
             buf: Vec::with_capacity(CHUNK),
             pos: 0,
+            samples_in_frame: 0,
             stop,
         }
     }
@@ -501,6 +502,10 @@ pub struct RingSource {
     sample_rate: u32,
     buf: Vec<f32>,
     pos: usize,
+    /// Samples collected toward the next frame. Not derived from the tail
+    /// length: once that buffer is full it stays a multiple of `channels`,
+    /// which would count every sample as a frame and run stereo at 2x.
+    samples_in_frame: usize,
     /// When set, `next()` returns `None` immediately so this source stops
     /// draining the ring without waiting for rodio's ~5ms `stoppable` wrapper.
     stop: Arc<AtomicBool>,
@@ -560,15 +565,20 @@ impl Source for RingSource {
 }
 
 impl RingSource {
-    fn push_tail(&self, sample: f32) {
-        let mut tail = self.tail.lock().expect("tail lock");
-        tail.push(sample);
-        let max = TAIL_FRAMES * self.channels as usize;
-        if tail.len() > max {
-            let drop = tail.len() - max;
-            tail.drain(..drop);
+    fn push_tail(&mut self, sample: f32) {
+        let channels = self.channels.max(1) as usize;
+        {
+            let mut tail = self.tail.lock().expect("tail lock");
+            tail.push(sample);
+            let max = TAIL_FRAMES * channels;
+            if tail.len() > max {
+                let drop = tail.len() - max;
+                tail.drain(..drop);
+            }
         }
-        if tail.len() % self.channels as usize == 0 {
+        self.samples_in_frame += 1;
+        if self.samples_in_frame >= channels {
+            self.samples_in_frame = 0;
             self.consumed.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -620,6 +630,29 @@ mod tests {
         let mut f = File::create(&path).expect("create temp wav");
         f.write_all(bytes).expect("write temp wav");
         path
+    }
+
+    #[test]
+    fn stereo_position_stays_on_frames_after_the_tail_fills() {
+        let channels = 2usize;
+        let frames = TAIL_FRAMES + 100;
+        let samples = frames * channels;
+        let ring = Arc::new(Ring::new(frames + 8, channels));
+        ring.push(&vec![0.1; samples]);
+        let consumed = Arc::new(AtomicU64::new(0));
+        let mut src = RingSource {
+            ring,
+            tail: Arc::new(Mutex::new(Vec::new())),
+            consumed: Arc::clone(&consumed),
+            channels: channels as u16,
+            sample_rate: 44_100,
+            buf: Vec::new(),
+            pos: 0,
+            samples_in_frame: 0,
+            stop: Arc::new(AtomicBool::new(false)),
+        };
+        assert_eq!(src.by_ref().take(samples).count(), samples);
+        assert_eq!(consumed.load(Ordering::Relaxed), frames as u64);
     }
 
     #[test]
