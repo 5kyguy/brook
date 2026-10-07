@@ -14,7 +14,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use mpris_server::{Metadata, PlaybackStatus, Player, Time};
+use mpris_server::{Metadata, PlaybackStatus, Player, Time, TrackId};
 use tauri::{AppHandle, Listener, Manager};
 use tokio::sync::mpsc;
 
@@ -31,6 +31,7 @@ pub enum MprisUpdate {
         album: String,
         duration_us: i64,
         art_url: String,
+        track_path: String,
     },
     Status(PlaybackStatus),
     Volume(f64),
@@ -224,12 +225,16 @@ async fn apply_update(player: &Player, update: MprisUpdate) {
             album,
             duration_us,
             art_url,
+            track_path,
         } => {
             let mut builder = Metadata::builder()
                 .title(title)
                 .artist([artist])
                 .album(album)
                 .length(Time::from_micros(duration_us));
+            if let Ok(track_id) = TrackId::try_from(track_path) {
+                builder = builder.trackid(track_id);
+            }
             if !art_url.is_empty() {
                 builder = builder.art_url(art_url);
             }
@@ -242,7 +247,9 @@ async fn apply_update(player: &Player, update: MprisUpdate) {
             let _ = player.set_volume(v).await;
         }
         MprisUpdate::Position(d) => {
-            player.set_position(Time::from_micros(d.as_micros() as i64));
+            let time = Time::from_micros(d.as_micros() as i64);
+            player.set_position(time);
+            let _ = player.seeked(time).await;
         }
         MprisUpdate::Shuffle(s) => {
             let _ = player.set_shuffle(s).await;
@@ -264,6 +271,7 @@ fn loop_status_to_str(l: LoopStatus) -> &'static str {
 fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender<MprisUpdate>) {
     let tx_meta = tx.clone();
     let covers = covers_dir.clone();
+    let track_generation = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1));
     let on_track = move |event: &tauri::Event| {
         let Some(track) = track_from_playback_event(event.payload()) else {
             return;
@@ -276,12 +284,14 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
         let album = track.album.clone().unwrap_or_default();
         let duration_us = (track.duration_secs.unwrap_or(0.0) * 1_000_000.0) as i64;
         let art_url = cover_url_for(&covers, &track.id);
+        let generation = track_generation.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let _ = tx_meta.send(MprisUpdate::Metadata {
             title,
             artist,
             album,
             duration_us,
             art_url,
+            track_path: format!("/dev/skyguy/brook/track/{generation}"),
         });
     };
     // Manual play_track emits track-changed; the gapless engine path emits
@@ -306,9 +316,13 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
         let _ = tx_state.send(MprisUpdate::Status(map_status(payload.status)));
     });
 
-    // Throttle position updates to ~1 second for D-Bus.
+    // Throttle position updates to ~1 second for D-Bus. A jump backward (new
+    // track or a seek) is sent immediately so clients do not keep the old spot.
     let tx_pos = tx.clone();
-    let last = std::sync::Arc::new(Mutex::new(std::time::Instant::now()));
+    let last = std::sync::Arc::new(Mutex::new((
+        std::time::Instant::now() - std::time::Duration::from_secs(1),
+        f64::MAX,
+    )));
     let app_for_volume = app.clone();
     let _ = app.listen("playback:position", move |event| {
         let Ok(payload) =
@@ -316,11 +330,15 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
         else {
             return;
         };
+        let position_secs = payload.position_secs.max(0.0);
         let now = std::time::Instant::now();
         let should_emit = {
             let mut guard = last.lock().expect("mpris throttle lock");
-            if guard.elapsed() >= std::time::Duration::from_secs(1) {
-                *guard = now;
+            let (ref mut instant, ref mut prev) = *guard;
+            let jumped_back = position_secs + 1.0 < *prev;
+            if instant.elapsed() >= std::time::Duration::from_secs(1) || jumped_back {
+                *instant = now;
+                *prev = position_secs;
                 true
             } else {
                 false
@@ -329,7 +347,7 @@ fn forward_events(app: AppHandle, covers_dir: PathBuf, tx: mpsc::UnboundedSender
         if !should_emit {
             return;
         }
-        let pos = std::time::Duration::from_secs_f64(payload.position_secs.max(0.0));
+        let pos = std::time::Duration::from_secs_f64(position_secs);
         let _ = tx_pos.send(MprisUpdate::Position(pos));
         // Also push the current volume so playerctl's volume reflects reality.
         let state = app_for_volume.state::<AppState>();
