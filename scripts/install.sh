@@ -21,6 +21,8 @@ DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}"
 ICON_DIR="${DATA_DIR}/icons/hicolor/256x256/apps"
 DESKTOP_DIR="${DATA_DIR}/applications"
 ICON_URL="https://raw.githubusercontent.com/${REPO}/main/backend/icons/icon.png"
+tmp_sums=""
+trap 'if [ -n "$tmp_sums" ]; then rm -f "$tmp_sums"; fi' EXIT
 
 err() {
   echo "brook install: $*" >&2
@@ -77,9 +79,11 @@ verify_checksum() {
   local filename="$2"
   local tag="$3"
   local sums_url="https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS"
-  local tmp_sums expected actual
+  local expected actual
+
+  # tmp_sums is a global cleaned by the EXIT trap: a RETURN trap here fires
+  # after the function scope ends and kills the script under `set -u`.
   tmp_sums="$(mktemp)"
-  trap 'rm -f "$tmp_sums"' RETURN
 
   if ! curl -fsSL "$sums_url" -o "$tmp_sums" 2>/dev/null; then
     err "BROOK_VERIFY=1 but SHA256SUMS not found for ${tag}"
